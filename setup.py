@@ -40,19 +40,54 @@ class MSO:
     def write(self, command):
         self.instance.write(command)
 
-def sweep(nomeArq):
-    oscilos.instance.write('DATA:SOURCE CH2')
-    oscilos.instance.write('DATA:ENCDG RIBINARY')
-    oscilos.instance.write('DATA:WIDTH 1')
-    oscilos.instance.write('ACQ:STATE RUN')
+
+
+def sweepSave(nomeArq):
+    oscilos.write('DATA:SOURCE CH2')
+    oscilos.write('DATA:ENCDG RIBINARY')
+    oscilos.write('DATA:WIDTH 1')
+    oscilos.write('ACQ:STATE RUN')
     time.sleep(2)
+    laser.write('wav:swe 1')
+    while True:
+        if (laser.instance.query('wav:swe?') == '+0'):
+            time.sleep(2)
+            break
+    oscilos.write('ACQ:STATE STOP')
+    oscilos.write(f'SAV:WAVE CH2, "{nomeArq}.wfm"')
+
+def sweepCurve():
+    oscilos.write('DATA:SOURCE CH2')
+    oscilos.write('DATA:START 1')
+    oscilos.write('DATA:STOP 999')
+    #oscilos.write('DATA:STOP 999999999999999')
+    oscilos.write('WFMOutpre:ENCdg BINARY')
+    oscilos.write('WFMOutpre:BYT_NR 2')
+    oscilos.write('HEADER 1')
+    oscilos.write('ACQ:STATE RUN')
+    time.sleep(2)
+
+    '''
     laser.instance.write('wav:swe 1')
     while True:
         if (laser.instance.query('wav:swe?') == '+0'):
             time.sleep(2)
             break
+    #'''
+
     oscilos.instance.write('ACQ:STATE STOP')
-    oscilos.instance.write(f'SAV:WAVE CH2, "{nomeArq}.wfm"')
+
+    dados = oscilos.instance.query_binary_values('CURVE?')
+    return dados
+
+def setup():
+    oscilos.instance.write('DATA:SOURCE CH2')
+    oscilos.instance.write('DATA:ENCDG RIBINARY')
+    oscilos.instance.write('DATA:WIDTH 1')
+    
 
 laser = TSL()
 oscilos = MSO()
+
+laser.query('*IDN?')
+oscilos.query('*IDN?')
