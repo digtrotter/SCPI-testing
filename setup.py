@@ -1,7 +1,11 @@
 import pyvisa
+import matplotlib
 import matplotlib.pyplot as plt
+import numpy
 import time
+
 rm = pyvisa.ResourceManager("@py")
+matplotlib.use('TkAgg')
 
 # código com o objetivo de rodar em modo interativo (adicionar flag -i no comando)
 
@@ -69,42 +73,51 @@ def sweepCurve():
     #'''
 
     oscilos.instance.write('ACQ:STATE STOP')
-
-    dados = oscilos.instance.query_binary_values('CURVE?', datatype='I', is_big_endian=False) # unsigned int, least sig. bit first
+    #dados = oscilos.instance.query('curve?')
+    dados = oscilos.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+    oscilos.instance.write('CLEAR')
     return dados
 
 def setup():
+    laser.write('power:state 1')
     oscilos.write('SEL:CH1 on')
     oscilos.write('SEL:CH2 off')
     oscilos.write('SEL:CH3 off')
     oscilos.write('SEL:CH4 off')
     oscilos.write('DATA:SOURCE CH1')
-    oscilos.write('DATA:ENCDG SRPBINARY')
-    oscilos.write('DATA:WIDTH 1')
+    oscilos.write('WFMO:BYT_NR 2')
+    oscilos.write('wfmo:encdg BIN')
+    oscilos.write('wfmo:bn_fmt RP')
+    oscilos.write('wfmo:byt_or LSB')
     oscilos.write('hor:mode man')
     oscilos.write("hor:mode:man:configure horizontalscale")
     oscilos.write('hor:recordlength 10000000')
     oscilos.write("hor:samplerate 250000")
     oscilos.write('DATA:START 1')
     oscilos.write('DATA:STOP 10000000')
-    oscilos.write('WFMOutpre:BYT_NR 1')
-    oscilos.write('HEADER 1')
-    laser.write('power:state 1')
+    oscilos.write('header off')
+    time.sleep(1)
+
+def process(dados):
+    array = numpy.array(dados, dtype='f')
+    #pontos = oscilos.query('wfmo:nr_pt')
+    zero = oscilos.instance.query('wfmo:yzero?').lower()
+    escala = oscilos.instance.query('wfmo:ymult?').lower()
+    array = numpy.divide(array, escala)
+    array = array + zero
+    # fazer parsing
+    pass
+    return array
 
 def plotDados(data_values):
 
         plt.plot(data_values) # marker='o' adds markers to the data points
 
-        # --- Adding labels and title for clarity ---
         plt.title('2D Plot of List Values')
         plt.xlabel('Index')
         plt.ylabel('Value')
 
-        # --- Adding a grid ---
         plt.grid(True)
-
-        # --- Display the plot ---
-        print("Displaying plot... Close the plot window to continue.")
         plt.show()
 
 laser = TSL()

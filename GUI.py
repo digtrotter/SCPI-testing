@@ -10,54 +10,56 @@ import setup
 
 import math
 
+import setup
+
 # tk interface
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, tsl, mso):
         super().__init__()
-        self.TSL = None
-        self.DAQ = None
+        self.tsl = tsl
+        self.mso = mso
 
         self.title("OFDR")
-        self.geometry("1200x800")
-        self.resizable(False, False)
+        self.geometry("800x600")
+        self.resizable(True, True)
 
         self.grid_columnconfigure((0,1), weight=1)
         self.grid_rowconfigure((0,1,2), weight=1)
 
         self.left_frame = FrameDAQ(self)
-        self.left_frame.config(text="Config. NI USB-6361")
+        self.left_frame.config(text="Config MSO24")
         self.left_frame.grid(row=0, column=0, padx=5, pady=5, sticky="new")
 
         
         self.right_frame = FrameTSL(self)
-        self.right_frame.config(text="Config. TSL-570")
+        self.right_frame.config(text="Config TSL-570")
         self.right_frame.grid(row=0, column=1, padx=5, pady=5, sticky="new")
 
         self.bottom_frame = FrameSave(self)
         self.bottom_frame.config(text="Armazenamento de Dados")
-        self.bottom_frame.grid(row=1, column=0, padx=5, pady=5, columnspan=2, sticky="new")
+        self.bottom_frame.grid(row=2, column=0, padx=5, pady=5, columnspan=2, sticky="new")
 
-        self.graph_frame = DataGraph(self)
+        self.graph_frame = FrameData(self)
         self.graph_frame.config(text="Gráfico")
-        self.graph_frame.grid(row=2, column=0, padx=5, pady=5, sticky="new")
+        self.graph_frame.grid(row=1, column=0, padx=5, pady=5, sticky="new")
         
-        self.fft_frame = FFTGraph(self)
+        self.fft_frame = FrameFFT(self)
         self.fft_frame.config(text="FFT")
-        self.fft_frame.grid(row=2, column=1, padx=5, pady=5, sticky="new")
+        self.fft_frame.grid(row=1, column=1, padx=5, pady=5, sticky="new")
 
-class DataGraph(ttk.Labelframe):
+class FrameData(ttk.Labelframe):
     def __init__(self, container):
         super().__init__(container)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.fig = matplotlib.figure.Figure(figsize=(5, 4), dpi=100)
+        self.fig = matplotlib.figure.Figure(figsize=(2, 2), dpi=100)
         self.ax = self.fig.add_subplot(111)
 
-        self.ax.set_xlabel("time [s]")
-        self.ax.set_ylabel("f(t)")
+        self.ax.set_xlabel("sample")
+        self.ax.set_ylabel("V")
         self.ax.grid(True)
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
@@ -71,20 +73,20 @@ class DataGraph(ttk.Labelframe):
         t = [x for x in range(len(data))]
 
         self.ax.plot(t, data)
-        self.ax.set_xlabel("s")
+        self.ax.set_xlabel("sample")
         self.ax.set_ylabel("V")
         self.ax.grid(True) # Re-enable grid if desired
 
         self.canvas.draw()
 
-class FFTGraph(ttk.Labelframe):
+class FrameFFT(ttk.Labelframe):
     def __init__(self, container):
         super().__init__(container)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.fig = matplotlib.figure.Figure(figsize=(5, 4), dpi=100)
+        self.fig = matplotlib.figure.Figure(figsize=(2, 2), dpi=100)
         self.ax = self.fig.add_subplot(111)
 
         self.ax.set_xlabel("x")
@@ -108,9 +110,9 @@ class FFTGraph(ttk.Labelframe):
         t = [x for x in range(len(data))]
 
         self.ax.plot(t, data)
-        self.ax.set_xlabel("time [s]")
-        self.ax.set_ylabel("f(t)")
-        self.ax.grid(True) # Re-enable grid if desired
+        self.ax.set_xlabel("x")
+        self.ax.set_ylabel("y")
+        self.ax.grid(True)
 
         self.canvas.draw()
 
@@ -125,21 +127,31 @@ def calculate_fft(data_list):
 class FrameTSL(ttk.Labelframe):
     def __init__(self, container):
         super().__init__(container)
-        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure((0,1), weight=1)
+        self.grid_rowconfigure((0,1,2), weight=1)
         self.label1 = ttk.Label(self, text="Velocidade de varredura")
         self.label1.grid(row=0, column=0, sticky="nsew", pady=(5, 0))
         self.combobox1 = ttk.Combobox(self)
         self.combobox1.grid(row=1, column=0, padx=5, pady=(0, 10), sticky="nsew")
 
-        label2 = ttk.Label(self, text="Comprimento de onda inicial")
-        label2.grid(row=2, column=0, sticky="nsew", pady=(5, 0))
-        entry2 = ttk.Entry(self)
-        entry2.grid(row=3, column=0, padx=5, pady=(0, 10), sticky="nsew")
+        self.label2 = ttk.Label(self, text="Comprimento de onda inicial")
+        self.label2.grid(row=2, column=0, sticky="nsew", pady=(5, 0))
+        self.entry2 = ttk.Entry(self)
+        self.entry2.grid(row=3, column=0, padx=5, pady=(0, 10), sticky="nsew")
 
-        label3 = ttk.Label(self, text="Comprimento de onda final")
-        label3.grid(row=4, column=0, sticky="nsew", pady=(5, 0))
-        entry3 = ttk.Entry(self)
-        entry3.grid(row=5, column=0, padx=5, pady=(0, 10), sticky="nsew")
+        self.label3 = ttk.Label(self, text="Comprimento de onda final")
+        self.label3.grid(row=2, column=1, sticky="nsew", pady=(5, 0))
+        self.entry3 = ttk.Entry(self)
+        self.entry3.grid(row=3, column=1, padx=5, pady=(0, 10), sticky="nsew")
+
+        self.label4 = ttk.Label(self, text="Instrução SCPI")
+        self.label4.grid(row=4, column=0, padx=5, pady=(0, 10), sticky="nsew")
+        
+        self.entry4 = ttk.Entry(self)
+        self.entry4.grid(row=5, column=0, padx=5, pady=(0, 10), sticky="nsew")
+        
+        self.button5 = ttk.Button(self, text="Enviar Instrução", command=lambda:root.tsl.query(self.entry4.get()))
+        self.button5.grid(row=5, column=1, padx=5, pady=(0, 10), sticky="nsew")
 
 class FrameDAQ(ttk.Labelframe):
 
@@ -148,15 +160,16 @@ class FrameDAQ(ttk.Labelframe):
     |3 4|
     |5 6|
     '''
-    labels = ["Canal 1 (Dados)", "Canal 2 (Diferencial)", "Canal 3 (Trigger)",
-              "Taxa de Amostragem", "Tamanho do Buffer"]
-    buttonText = "Iniciar Varredura"
+    labels = ["Canal 1", "Canal 2", "Taxa de Amostragem",
+              "Tempo de Aquisição", "Instrução SCPI"]
+    buttonText = "Enviar Instrução"
     widgets = []
 
     def __init__(self, container):
         super().__init__(container)
         self.grid_columnconfigure((0,1), weight=1)
         self.grid_rowconfigure((0,1,2), weight=1)
+        self.dados = None
 
         for x in range(11):
             if (x%2 == 0 and x<10): # prints labels
@@ -164,15 +177,21 @@ class FrameDAQ(ttk.Labelframe):
                 self.widgets[x].grid(row=(int(x/4)%3)*2, column=(int(x/2)%2), # (u%3)*2 organizes in 3 rows and offsets them by one, when substituting x/4, it corrects index twice (from 0,2,4,6,8,10 to 0,1,2,3,4,5 to 0,0,1,1,2,2)
                                     pady=(5,0), sticky="ew")
                 
-            elif (x<10): # prints comboboxes
+            elif (x<9): # prints comboboxes
                 self.widgets.insert(x, ttk.Combobox(self))
                 self.widgets[x].grid(row=(int(x/4)%3)*2+1, column=(int(x/2)%2), # (u%3)*2 places it on every other line, when substituting x/4, it corrects index twice (from 0,2,4,6,8,10 to 0,1,2,3,4,5 to 0,0,1,1,2,2)
                                     padx=5, sticky="ew", pady=(0,10))
-                
+            elif (x==9):
+                self.widgets.insert(x, ttk.Entry(self))
+                self.widgets[x].grid(row=(int(x/4)%3)*2+1, column=(int(x/2)%2), padx=5, sticky="ew", pady=(0,10))
+
             else: # print button
-                self.widgets.insert(x, ttk.Button(self, text=self.buttonText, command=lambda:root.graph_frame.plot_graph(range(100))))
+                self.widgets.insert(x, ttk.Button(self, text=self.buttonText, command=lambda:root.mso.query(self.widgets[9].get())))
+
                 self.widgets[x].grid(row=(int(x/4)%3)*2+1, column=(int(x/2)%2), # (u%3)*2 places it on every other line, when substituting x/4, it corrects index twice (from 0,2,4,6,8,10 to 0,1,2,3,4,5 to 0,0,1,1,2,2)
                                     padx=5, sticky="ew", pady=(0,10))
+
+# command=lambda:root.graph_frame.plot_graph(setup.sweepCurve())
 
 class FrameSave(ttk.Labelframe):
     def __init__(self, container):
@@ -187,7 +206,7 @@ class FrameSave(ttk.Labelframe):
         self.button1 = ttk.Button(self, text="Escolher Diretório", command=self.stop_task)
         self.button1.grid(row=1, column=4, padx=5, pady=(0,10), sticky="ew")
 
-        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=self.start_task)
+        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:plot_all(setup.sweepCurve()))
         self.button2.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
         self.progress = ttk.Progressbar(self, mode="indeterminate", maximum=60, )
         self.progress.grid(row=2, column=1, padx=5, pady=(0,10), columnspan=4, sticky="ew")
@@ -200,7 +219,7 @@ class FrameSave(ttk.Labelframe):
         root.graph_frame.plot_graph(dados_teste)
         root.fft_frame.plot_graph(dados_teste)
         #time.sleep(3)  
-        #self.progress.stop()  
+        #self.progress.stop() 
 
     def stop_task(self):
         self.progress.stop()
@@ -210,8 +229,10 @@ class FrameSave(ttk.Labelframe):
         #self.dataPath = filedialog.asksaveasfilename(initialdir=".", title="teste, fi",
         #                                            filetypes=(("Text files", "*.txt*"), ("all files", "*.*")))
 
+def plot_all(dados):
+    root.graph_frame.plot_graph(dados)
+    root.fft_frame.plot_graph(dados)
 
 
-
-root = App()
+root = App(setup.laser, setup.oscilos)
 root.mainloop()
