@@ -70,9 +70,7 @@ class FrameData(ttk.Labelframe):
     def plot_graph(self, data):
         self.ax.clear()
 
-        t = [x for x in range(len(data))]
-
-        self.ax.plot(t, data)
+        self.ax.plot(data[0], data[1])
         self.ax.set_xlabel("sample")
         self.ax.set_ylabel("V")
         self.ax.grid(True) # Re-enable grid if desired
@@ -101,28 +99,18 @@ class FrameFFT(ttk.Labelframe):
     def plot_graph(self, dados):
         self.ax.clear()
         
-        temp = np.array(dados)
+        temp = np.array(dados[1])
         fft = np.fft.fft(temp)
         magnitude = np.abs(fft)
         half_point = len(temp) // 2
         data = magnitude[:half_point] / len(temp)
         
-        t = [x for x in range(len(data))]
-
-        self.ax.plot(t, data)
+        self.ax.plot(data)
         self.ax.set_xlabel("x")
         self.ax.set_ylabel("y")
         self.ax.grid(True)
 
         self.canvas.draw()
-
-def calculate_fft(data_list):
-    data = np.array(data_list)
-    fft = np.fft.fft(data)
-    magnitude = np.abs(fft)
-    half_point = len(data) // 2
-    normalized_data = magnitude[:half_point] / len(data)
-    return normalized_data
 
 class FrameTSL(ttk.Labelframe):
     def __init__(self, container):
@@ -206,7 +194,7 @@ class FrameSave(ttk.Labelframe):
         self.button1 = ttk.Button(self, text="Escolher Diretório", command=self.stop_task)
         self.button1.grid(row=1, column=4, padx=5, pady=(0,10), sticky="ew")
 
-        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:plot_all(setup.sweepCurve()))
+        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:plot_all(setup.sweepCurve(root.mso, root.tsl)))
         self.button2.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
         self.progress = ttk.Progressbar(self, mode="indeterminate", maximum=60, )
         self.progress.grid(row=2, column=1, padx=5, pady=(0,10), columnspan=4, sticky="ew")
@@ -230,9 +218,11 @@ class FrameSave(ttk.Labelframe):
         #                                            filetypes=(("Text files", "*.txt*"), ("all files", "*.*")))
 
 def plot_all(dados):
+    print('plottando dados')
     root.graph_frame.plot_graph(dados)
+    print('plottando fft')
     root.fft_frame.plot_graph(dados)
 
 
-root = App(setup.laser, setup.oscilos)
+root = App(setup.tsl, setup.mso)
 root.mainloop()
