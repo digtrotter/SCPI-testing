@@ -73,6 +73,7 @@ def sweepCurve(osc, laser):
     print('adquirindo')
     osc.write('ACQ:STATE RUN')
     time.sleep(2)
+
     print('varredura')
     laser.sweep()
     time.sleep(2)
@@ -85,7 +86,7 @@ def sweepCurve(osc, laser):
     osc.CH1.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
 
     osc.write('DATA:SOURCE CH3')
-    osc.getWFMO(osc.CH1)
+    osc.getWFMO(osc.CH3)
     osc.CH3.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
     print('processamento')
     process(osc.CH1)
