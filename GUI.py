@@ -19,6 +19,7 @@ class App(tk.Tk):
         super().__init__()
         self.tsl = tsl
         self.mso = mso
+        self.acquiring = False
 
         self.title("OFDR")
         self.geometry("800x600")
@@ -30,7 +31,6 @@ class App(tk.Tk):
         self.left_frame = FrameDAQ(self)
         self.left_frame.config(text="Config MSO24")
         self.left_frame.grid(row=0, column=0, padx=5, pady=5, sticky="new")
-
         
         self.right_frame = FrameTSL(self)
         self.right_frame.config(text="Config TSL-570")
@@ -194,28 +194,16 @@ class FrameSave(ttk.Labelframe):
         self.button1 = ttk.Button(self, text="Escolher Diretório", command=self.stop_task)
         self.button1.grid(row=1, column=4, padx=5, pady=(0,10), sticky="ew")
 
-        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:plot_all(setup.sweepCurve(root.mso, root.tsl)))
+        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:sweepStart())
         self.button2.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
         self.progress = ttk.Progressbar(self, mode="indeterminate", maximum=60, )
         self.progress.grid(row=2, column=1, padx=5, pady=(0,10), columnspan=4, sticky="ew")
 
     def start_task(self):
         self.progress.start()  
-        root.update_idletasks() 
-
-        dados_teste = [math.sin(0.13*x) for x in range(400)]
-        root.graph_frame.plot_graph(dados_teste)
-        root.fft_frame.plot_graph(dados_teste)
-        #time.sleep(3)  
-        #self.progress.stop() 
 
     def stop_task(self):
         self.progress.stop()
-        dados_teste = [math.sin(0.33*x) for x in range(400)]
-        root.graph_frame.plot_graph(dados_teste)
-        root.fft_frame.plot_graph(dados_teste)
-        #self.dataPath = filedialog.asksaveasfilename(initialdir=".", title="teste, fi",
-        #                                            filetypes=(("Text files", "*.txt*"), ("all files", "*.*")))
 
 def plot_all(dados):
     print('plottando dados')
@@ -223,6 +211,39 @@ def plot_all(dados):
     print('plottando fft')
     root.fft_frame.plot_graph(dados)
 
+def sweepStart():
+    if (root.acquiring == True):
+        print("varredura já começou")
+        return
+
+    root.acquiring = True
+    root.bottom_frame.start_task()
+    setup.setup(root.mso, root.tsl)
+    root.mso.write('ACQ:STATE RUN')
+    root.tsl.write('power:state 1')
+    root.tsl.write('wav:swe 1')
+    sweepState()
+
+def sweepState():
+    if (root.tsl.instance.query('wav:swe?') == '+0'):
+        sweepEnd()
+    else:
+        root.after(1, sweepState)
+
+def sweepEnd():
+    root.mso.write('ACQ:STATE STOP')
+
+    root.mso.write('DATA:SOURCE CH1')
+    root.mso.getWFMO(root.mso.CH1)
+    root.mso.CH1.valores = root.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+
+    root.mso.write('DATA:SOURCE CH3')
+    root.mso.getWFMO(root.mso.CH3)
+    root.mso.CH3.valores = root.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+    setup.process(root.mso.CH1)
+    plot_all(root.mso.CH1.eixos)
+    root.acquiring = False
+    root.bottom_frame.stop_task()
 
 root = App(setup.tsl, setup.mso)
 root.mainloop()
