@@ -34,7 +34,8 @@ class TSL:
                 return
 
 class Dados:
-    def __init__(self):
+    def __init__(self, nome): # nome virá da GUI
+        self.nome = nome # (CH1, CH2, CH3, CH4)
         self.valores = None
         self.numPts = None
         self.zero = None
@@ -49,8 +50,18 @@ class MSO:
         self.instance = rm.open_resource(self.resource)
         self.instance.read_termination = '\n'
         self.instance.write_termination = '\n'
-        self.CH1 = Dados()
-        self.CH3 = Dados()
+        self.CH1 = Dados("CH1")
+        self.CH3 = Dados("CH3")
+        #self.CH1 = canal1
+        #self.CH3 = canal2
+        #self.amostragem = amostragem
+        #self.tempo = tempo
+    
+    #def update(self, canal1, canal2, amostragem, tempo):
+        #self.CH1 = canal1
+        #self.CH3 = canal2
+        #self.amostragem = amostragem
+        #self.tempo = tempo
 
     def query(self, command):
         try:
@@ -111,8 +122,8 @@ def setup(osc, laser):
     osc.write('DATA:START 1')
     osc.write('DATA:STOP 10000000')
     osc.write('header off')
-    osc.CH1 = Dados()
-    osc.CH3 = Dados()
+    osc.CH1 = Dados("CH1")
+    osc.CH3 = Dados("CH3")
     osc.write('*CLS')
     time.sleep(1)
 

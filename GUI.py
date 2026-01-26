@@ -148,16 +148,21 @@ class FrameDAQ(ttk.Labelframe):
     |3 4|
     |5 6|
     '''
-    labels = ["Canal 1", "Canal 2", "Taxa de Amostragem",
-              "Tempo de Aquisição", "Instrução SCPI"]
-    buttonText = "Enviar Instrução"
-    widgets = []
 
     def __init__(self, container):
         super().__init__(container)
         self.grid_columnconfigure((0,1), weight=1)
         self.grid_rowconfigure((0,1,2), weight=1)
         self.dados = None
+
+        self.labels = ["Canal 1", "Canal 2", "Taxa de Amostragem", "Tempo de Aquisição", "Instrução SCPI"]
+        self.buttonText = "Enviar Instrução"
+        self.comboboxOptions = [["CH1", "CH2", "CH3", "CH4"],
+                                ["CH1", "CH2", "CH3", "CH4"],
+                                ["10000", "100000", "1000000"],
+                                ["1", "2", "3", "5", "8"]]
+        self.comboboxSelected = [tk.StringVar(value="CH1"), tk.StringVar(value="CH3"), tk.StringVar(value="100000"), tk.StringVar(value="5")]
+        self.widgets = []
 
         for x in range(11):
             if (x%2 == 0 and x<10): # prints labels
@@ -166,7 +171,7 @@ class FrameDAQ(ttk.Labelframe):
                                     pady=(5,0), sticky="ew")
                 
             elif (x<9): # prints comboboxes
-                self.widgets.insert(x, ttk.Combobox(self))
+                self.widgets.insert(x, ttk.Combobox(self, textvariable=self.comboboxSelected[int(x/2)], values=self.comboboxOptions[int(x/2)]))
                 self.widgets[x].grid(row=(int(x/4)%3)*2+1, column=(int(x/2)%2), # (u%3)*2 places it on every other line, when substituting x/4, it corrects index twice (from 0,2,4,6,8,10 to 0,1,2,3,4,5 to 0,0,1,1,2,2)
                                     padx=5, sticky="ew", pady=(0,10))
             elif (x==9):
@@ -218,6 +223,7 @@ def sweepStart():
 
     root.acquiring = True
     root.bottom_frame.start_task()
+    
     setup.setup(root.mso, root.tsl)
     root.mso.write('ACQ:STATE RUN')
     root.tsl.write('power:state 1')
