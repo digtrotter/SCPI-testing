@@ -160,7 +160,7 @@ class FrameDAQ(ttk.Labelframe):
         self.comboboxOptions = [["CH1", "CH2", "CH3", "CH4"],
                                 ["CH1", "CH2", "CH3", "CH4"],
                                 ["10000", "100000", "1000000"],
-                                ["1", "2", "3", "5", "8"]]
+                                ["1", "2", "4", "6", "8"]]
         self.comboboxSelected = [tk.StringVar(value="CH1"), tk.StringVar(value="CH3"), tk.StringVar(value="100000"), tk.StringVar(value="5")]
         self.widgets = []
 
@@ -199,7 +199,7 @@ class FrameSave(ttk.Labelframe):
         self.button1 = ttk.Button(self, text="Escolher Diretório", command=self.stop_task)
         self.button1.grid(row=1, column=4, padx=5, pady=(0,10), sticky="ew")
 
-        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:sweepStart())
+        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:sweepStart(mso=root.mso, tsl=root.tsl, canal1=root.left_frame.comboboxSelected[0].get(), canal2=root.left_frame.comboboxSelected[1].get(), amostragem=root.left_frame.comboboxSelected[2].get(), tempo=root.left_frame.comboboxSelected[3].get()))
         self.button2.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
         self.progress = ttk.Progressbar(self, mode="indeterminate", maximum=60, )
         self.progress.grid(row=2, column=1, padx=5, pady=(0,10), columnspan=4, sticky="ew")
@@ -216,7 +216,7 @@ def plot_all(dados):
     print('plottando fft')
     root.fft_frame.plot_graph(dados)
 
-def sweepStart():
+def sweepStart(mso: setup.MSO, tsl: setup.TSL, canal1: str, canal2: str, amostragem: str, tempo: str):
     if (root.acquiring == True):
         print("varredura já começou")
         return
@@ -224,7 +224,7 @@ def sweepStart():
     root.acquiring = True
     root.bottom_frame.start_task()
     
-    setup.setup(root.mso, root.tsl)
+    setup.setup(mso, tsl, canal1, canal2)
     root.mso.write('ACQ:STATE RUN')
     root.tsl.write('power:state 1')
     root.tsl.write('wav:swe 1')
@@ -232,7 +232,7 @@ def sweepStart():
 
 def sweepState():
     if (root.tsl.instance.query('wav:swe?') == '+0'):
-        sweepEnd()
+        root.after(0, sweepEnd)
     else:
         root.after(1, sweepState)
 
@@ -246,6 +246,7 @@ def sweepEnd():
     root.mso.write('DATA:SOURCE CH3')
     root.mso.getWFMO(root.mso.CH3)
     root.mso.CH3.valores = root.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+
     setup.process(root.mso.CH1)
     plot_all(root.mso.CH1.eixos)
     root.acquiring = False

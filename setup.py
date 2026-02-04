@@ -84,6 +84,7 @@ class MSO:
         '''
         atualiza os metadados de um canal
         '''
+        self.write(f'DATA:SOURCE {channel.nome}')
         numPts = int(self.instance.query("wfmo:nr_pt?"))
         ymult = float(self.instance.query("wfmo:ymult?"))
         zero = float(self.instance.query("wfmo:yzero?"))
