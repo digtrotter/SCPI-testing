@@ -115,26 +115,32 @@ class FrameFFT(ttk.Labelframe):
 class FrameTSL(ttk.Labelframe):
     def __init__(self, container):
         super().__init__(container)
+        
+        self.comboboxOptions = [["1", "2", "4", "5", "10", "20"]]
+        self.comboboxSelected = [tk.StringVar(value="5")]
+
         self.grid_columnconfigure((0,1), weight=1)
         self.grid_rowconfigure((0,1,2), weight=1)
+
         self.label1 = ttk.Label(self, text="Velocidade de varredura")
         self.label1.grid(row=0, column=0, sticky="nsew", pady=(5, 0))
-        self.combobox1 = ttk.Combobox(self)
+        self.combobox1 = ttk.Combobox(self, textvariable=self.comboboxSelected[0], values=self.comboboxOptions[0] )
         self.combobox1.grid(row=1, column=0, padx=5, pady=(0, 10), sticky="nsew")
 
         self.label2 = ttk.Label(self, text="Comprimento de onda inicial")
         self.label2.grid(row=2, column=0, sticky="nsew", pady=(5, 0))
         self.entry2 = ttk.Entry(self)
+        self.entry2.insert(0, "1480")
         self.entry2.grid(row=3, column=0, padx=5, pady=(0, 10), sticky="nsew")
 
         self.label3 = ttk.Label(self, text="Comprimento de onda final")
         self.label3.grid(row=2, column=1, sticky="nsew", pady=(5, 0))
         self.entry3 = ttk.Entry(self)
+        self.entry3.insert(0, "1640")
         self.entry3.grid(row=3, column=1, padx=5, pady=(0, 10), sticky="nsew")
 
         self.label4 = ttk.Label(self, text="Instrução SCPI")
         self.label4.grid(row=4, column=0, padx=5, pady=(0, 10), sticky="nsew")
-        
         self.entry4 = ttk.Entry(self)
         self.entry4.grid(row=5, column=0, padx=5, pady=(0, 10), sticky="nsew")
         
