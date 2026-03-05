@@ -114,6 +114,18 @@ def setup(osc, laser, canal1: str, canal2: str):
     osc.write('SEL:CH4 OFF')
     osc.write(f'sel:{osc.CH1.nome} on')
     osc.write(f'sel:{osc.CH3.nome} on')
+    
+    #temp
+    osc.write('ch3:offset 1.457')
+    osc.write('ch3:pos -1')
+    osc.write('ch3:scale 100E-3')
+    osc.write("ch3:probefunc:extatten 200E-3")
+
+    osc.write('ch1:offset 1')
+    osc.write('ch1:pos -580E-3')
+    osc.write('ch1:scale 200E-3')
+    osc.write("ch1:probefunc:extatten 10")
+    #
 
     osc.write(f'DATA:SOURCE {osc.CH1.nome}')
     osc.write('wfmo:byt_nr 2')
