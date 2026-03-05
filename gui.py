@@ -1,15 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import filedialog
 
 import matplotlib.figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import numpy as np
-import setup
-
-import math
-
 import setup
 
 # tk interface
@@ -223,7 +218,7 @@ def plot_all(dados):
     root.fft_frame.plot_graph(dados)
 
 def sweepStart(mso: setup.MSO, tsl: setup.TSL, canal1: str, canal2: str, amostragem: str, tempo: str):
-    if (root.acquiring == True):
+    if (root.acquiring):
         print("varredura já começou")
         return
 
