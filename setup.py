@@ -13,18 +13,24 @@ class TSL:
     def __init__(self):
         self.ip = '192.168.1.100'
         self.resource = f'TCPIP0::{self.ip}::5000::SOCKET'
-        self.instance = rm.open_resource(self.resource)
-        self.instance.read_termination = '\r'
-        self.instance.write_termination = '\r'
+        try:
+            self.instance = rm.open_resource(self.resource)
+            self.instance.read_termination = '\r'
+            self.instance.write_termination = '\r'
+        except Exception:
+            print("incapaz de conectar ao TSL")
 
     def query(self, command):
         try:
             print(self.instance.query(command))
-        except:
+        except Exception:
             print("sem resposta")
 
     def write(self, command):
-        self.instance.write(command)
+        try:
+            self.instance.write(command)
+        except Exception:
+            print("incapaz de enviar comando")
 
     def sweep(self):
         self.write('power:state 1')
@@ -58,19 +64,20 @@ class Dados:
     def updateEixos(self, eixos):
         self.eixos = eixos
 
-
 class MSO:
     def __init__(self, canal1: str, canal2: str, amostragem: str, tempo: str):
         self.ip = '192.168.1.111'
         self.resource = f'TCPIP0::{self.ip}::4000::SOCKET'
-        self.instance = rm.open_resource(self.resource)
-        self.instance.read_termination = '\n'
-        self.instance.write_termination = '\n'
         self.CH1 = Dados(canal1)
         self.CH3 = Dados(canal2)
         self.amostragem = amostragem
         self.tempo = tempo
-    
+        try:
+            self.instance = rm.open_resource(self.resource)
+            self.instance.read_termination = '\n'
+            self.instance.write_termination = '\n'
+        except Exception:
+            print("incapaz de conectar ao osciloscopio")
     def update(self, canal1, canal2, amostragem, tempo):
         '''
         atualiza as variáveis vindas da GUI
@@ -94,11 +101,15 @@ class MSO:
     def query(self, command):
         try:
             print(self.instance.query(command))
-        except:
+        except Exception:
             print("sem resposta")
 
     def write(self, command):
-        self.instance.write(command)
+        try:
+            self.instance.write(command)
+        except Exception:
+            print("incapaz de enviar comando")
+
 
 ############################################################
 
@@ -144,16 +155,6 @@ def setup(osc, laser, canal1: str, canal2: str):
     osc.write('*CLS')
     time.sleep(1)
 
-def process(channel):
-    y = numpy.array(channel.valores, dtype='f')
-    x = numpy.arange(channel.numPts, dtype="i")
-
-    y = numpy.divide(y, channel.ymult)
-    y = numpy.add(y, channel.zero)
-    x = numpy.multiply(x, channel.xincr)
-
-    channel.eixos = (x, y)
-
 def sweepCurve(osc, laser, canal1: str, canal2: str):
     print('setup')
     setup(osc, laser, canal1, canal2)
@@ -182,6 +183,15 @@ def sweepCurve(osc, laser, canal1: str, canal2: str):
     print('retornando eixos')
     return osc.CH1
 
+def process(channel):
+    y = numpy.array(channel.valores, dtype='f')
+    x = numpy.arange(channel.numPts, dtype="i")
+
+    y = numpy.divide(y, channel.ymult)
+    y = numpy.add(y, channel.zero)
+    x = numpy.multiply(x, channel.xincr)
+
+    channel.eixos = (x, y)
 
 def plotDados(channel):
     print('plot')
