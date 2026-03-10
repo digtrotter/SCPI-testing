@@ -3,6 +3,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy
 import time
+from scipy.signal import find_peaks
+from scipy.interpolate import CubicSpline
 
 rm = pyvisa.ResourceManager("@py")
 matplotlib.use('TkAgg')
@@ -86,12 +88,20 @@ class MSO:
         self.CH3 = Dados(canal2)
         self.amostragem = amostragem
         self.tempo = tempo
+    
+    def setupWFMO(self, channel_name: str):
+        self.write(f'DATA:SOURCE {channel_name}')
+        self.write('wfmo:byt_nr 2')
+        self.write('wfmo:encdg BIN')
+        self.write('wfmo:bn_fmt RP')
+        self.write('wfmo:byt_or LSB')
 
     def getWFMO(self, channel: Dados):
         '''
         atualiza os metadados de um canal
         '''
-        self.write(f'DATA:SOURCE {channel.nome}')
+        
+        self.setupWFMO(channel.nome)
         numPts = int(self.instance.query("wfmo:nr_pt?"))
         ymult = float(self.instance.query("wfmo:ymult?"))
         zero = float(self.instance.query("wfmo:yzero?"))
@@ -137,12 +147,8 @@ def setup(osc, laser, canal1: str, canal2: str):
     osc.write('ch1:scale 200E-3')
     osc.write("ch1:probefunc:extatten 10")
     #
-
-    osc.write(f'DATA:SOURCE {osc.CH1.nome}')
-    osc.write('wfmo:byt_nr 2')
-    osc.write('wfmo:encdg BIN')
-    osc.write('wfmo:bn_fmt RP')
-    osc.write('wfmo:byt_or LSB')
+    
+    osc.setupWFMO(osc.CH1.nome)
 
     osc.write('hor:mode man')
     osc.write("hor:mode:man:configure horizontalscale")
@@ -167,21 +173,35 @@ def sweepCurve(osc, laser, canal1: str, canal2: str):
     time.sleep(2)
     osc.write('ACQ:STATE STOP')
     
-    print('metadados')
-    #osc.write('DATA:SOURCE CH1')
+    print('metadados 1')
     osc.getWFMO(osc.CH1)
-    print('dados')
+    print('dados 1')
     osc.CH1.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
     
-    '''
-    osc.write('DATA:SOURCE CH3')
+    print('metadados 2')
     osc.getWFMO(osc.CH3)
+    print('dados 2')
     osc.CH3.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
-    '''
+    
     print('processamento')
     process(osc.CH1)
     print('retornando eixos')
     return osc.CH1
+
+def getPeaks(channel):
+    
+    y = numpy.array(channel.valores, dtype='f')
+    x = numpy.arange(channel.numPts, dtype="i")
+
+    y = numpy.divide(y, channel.ymult)
+    y = numpy.add(y, channel.zero)
+    x = numpy.multiply(x, channel.xincr)
+    
+    peaks = find_peaks(y)
+    interpol =  CubicSpline(x, channel.valores)
+    resampled = interpol(peaks)
+
+    return resampled
 
 def process(channel):
     y = numpy.array(channel.valores, dtype='f')
@@ -190,6 +210,7 @@ def process(channel):
     y = numpy.divide(y, channel.ymult)
     y = numpy.add(y, channel.zero)
     x = numpy.multiply(x, channel.xincr)
+
 
     channel.eixos = (x, y)
 

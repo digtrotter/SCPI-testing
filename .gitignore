@@ -1,5 +1,6 @@
 .*
 _*
 venv
+samples
 
 !.gitignore
