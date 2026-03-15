@@ -1,6 +1,7 @@
 import pyvisa
 import matplotlib
 import matplotlib.pyplot as plt
+import json
 import numpy
 import time
 from scipy.signal import find_peaks
@@ -16,7 +17,7 @@ class TSL:
         self.ip = '192.168.1.100'
         self.resource = f'TCPIP0::{self.ip}::5000::SOCKET'
         try:
-            self.instance = rm.open_resource(self.resource)
+            self.instance = rm.open_resource(self.resource, open_timeout=700) # works for pyvisa-py, "open_timeout" is confusing on documentation
             self.instance.read_termination = '\r'
             self.instance.write_termination = '\r'
         except Exception:
@@ -75,7 +76,7 @@ class MSO:
         self.amostragem = amostragem
         self.tempo = tempo
         try:
-            self.instance = rm.open_resource(self.resource)
+            self.instance = rm.open_resource(self.resource, open_timeout=700)
             self.instance.read_termination = '\n'
             self.instance.write_termination = '\n'
         except Exception:
@@ -214,6 +215,24 @@ def process(channel):
 
     channel.eixos = (x, y)
 
+def interpolPeaks(x_list, y_list, upsample_factor=10, prominence=None, distance=None):
+    x = numpy.asarray(x_list)
+    y = numpy.asarray(y_list)
+    
+    num_original_points = len(x)
+    num_interp_points = num_original_points * upsample_factor
+    x_interp = numpy.linspace(x[0], x[-1], num_interp_points)
+    
+    spline = CubicSpline(x, y)
+    y_interp = spline(x_interp)
+    
+    peaks_indices, properties = find_peaks(y_interp, prominence=prominence, distance=distance)
+    
+    peak_x = x_interp[peaks_indices]
+    peak_y = y_interp[peaks_indices]
+    
+    return peak_x, x_interp, peak_y, y_interp
+
 def plotDados(channel):
     print('plot')
     plt.plot(channel.eixos[0], channel.eixos[1]) # marker='o' adds markers to the data points
@@ -229,6 +248,64 @@ def plotDados(channel):
 
 def autoPlot():
     plotDados(sweepCurve(mso, tsl, "CH1", "CH3"))
+
+def mockData(ch_name: str):
+    
+    if (ch_name.lower() == "ch1"):
+        path = "samples/ch1-valores.json"
+
+    elif (ch_name.lower() == "ch3"):
+        path = "samples/ch3-valores.json"
+    
+    else:
+        print("canal inválido")
+        return []
+
+    try:
+        with open(path, 'r', encoding='utf-8') as arquivo:
+            dados = json.load(arquivo)
+            return dados
+                
+    except Exception:
+        print("o arquivo não foi encontrado.")
+        return []
+
+def mockWFMO(ch_name: str):
+    if (ch_name.lower() == "ch1"):
+        numPts = 7612160
+        ymult  = 3.125e-05
+        xincr  = 4e-06
+        zero   = 1.116
+
+    elif (ch_name.lower() == "ch3"):
+        numPts = 7612160
+        ymult  = 1.5625e-05
+        xincr  = 4e-06
+        zero   = 1.557
+    
+    else:
+        print("canal inválido")
+        return None
+
+    return (numPts, ymult, xincr, zero)
+
+def mockAll(osc, laser):
+    setup(osc, laser, "ch1", "ch3")
+    
+    osc.CH1.valores = mockData("ch1")
+    osc.CH1.numPts, osc.CH1.ymult, osc.CH1.xincr, osc.CH1.zero = mockWFMO("ch1")
+    process(osc.CH1)
+
+    osc.CH3.valores = mockData("ch3")
+    osc.CH3.numPts, osc.CH3.ymult, osc.CH3.xincr, osc.CH3.zero = mockWFMO("ch3")
+    process(osc.CH3)
+    x_peaks, x_inter, y_peaks, y_inter = interpolPeaks(osc.CH3.eixos[0], osc.CH3.eixos[1])
+    plotDados(osc.CH3)
+    '''
+    plt.plot(x_inter, y_inter)
+    plt.plot(x_peaks, y_peaks, 'x', color='red')
+    plt.show()
+    # '''
 
 tsl = TSL()
 mso = MSO("CH1", "CH3", "250000", "10000000")
