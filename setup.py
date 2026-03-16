@@ -5,6 +5,7 @@ import json
 import numpy
 import time
 from scipy.signal import find_peaks
+from scipy.signal import detrend
 from scipy.interpolate import CubicSpline
 
 rm = pyvisa.ResourceManager("@py")
@@ -212,18 +213,35 @@ def process(channel):
     y = numpy.add(y, channel.zero)
     x = numpy.multiply(x, channel.xincr)
 
-
     channel.eixos = (x, y)
+
+def process_fft(channel):
+    y_raw = numpy.asarray(channel.eixos[1])
+    y_mean = y_raw - numpy.mean(y_raw)
+    y = detrend(y_mean)
+
+    N = len(channel.eixos[0])
+    dt = channel.xincr 
+    
+    fft_values = numpy.fft.rfft(y)
+    frequencies = numpy.fft.rfftfreq(N, dt)
+    magnitudes = (2.0 / N) * numpy.abs(fft_values)
+
+    try:
+        magnitudes[0] /= 2.0 # compensating 0hz lack of negative freq
+    except Exception:
+            print("empty array")
+
+    channel.eixos = (frequencies, magnitudes)
 
 def interpolPeaks(x_list, y_list, upsample_factor=10, prominence=None, distance=None):
     x = numpy.asarray(x_list)
     y = numpy.asarray(y_list)
-    
-    num_original_points = len(x)
-    num_interp_points = num_original_points * upsample_factor
-    x_interp = numpy.linspace(x[0], x[-1], num_interp_points)
-    
+
+    num_interp_points = len(x) * upsample_factor
     spline = CubicSpline(x, y)
+    
+    x_interp = numpy.linspace(x[0], x[-1], num_interp_points)
     y_interp = spline(x_interp)
     
     peaks_indices, properties = find_peaks(y_interp, prominence=prominence, distance=distance)
@@ -231,7 +249,22 @@ def interpolPeaks(x_list, y_list, upsample_factor=10, prominence=None, distance=
     peak_x = x_interp[peaks_indices]
     peak_y = y_interp[peaks_indices]
     
-    return peak_x, x_interp, peak_y, y_interp
+    return (peak_x, peak_y), peaks_indices
+
+def interpolData(channel, peaks, upsample_factor=10):
+    x = numpy.array(channel.eixos[0])
+    y = numpy.array(channel.eixos[1])
+
+    num_interp_points = len(x) * upsample_factor
+    spline = CubicSpline(x, y)
+    
+    x_interp = numpy.linspace(x[0], x[-1], num_interp_points)
+    y_interp = spline(x_interp)
+
+    linear_x = x_interp[peaks]
+    linear_y = y_interp[peaks]
+
+    channel.eixos = (linear_x, linear_y)
 
 def plotDados(channel):
     print('plot')
@@ -299,13 +332,16 @@ def mockAll(osc, laser):
     osc.CH3.valores = mockData("ch3")
     osc.CH3.numPts, osc.CH3.ymult, osc.CH3.xincr, osc.CH3.zero = mockWFMO("ch3")
     process(osc.CH3)
-    x_peaks, x_inter, y_peaks, y_inter = interpolPeaks(osc.CH3.eixos[0], osc.CH3.eixos[1])
-    plotDados(osc.CH3)
-    '''
-    plt.plot(x_inter, y_inter)
-    plt.plot(x_peaks, y_peaks, 'x', color='red')
+
+    osc.CH3.eixos, peaks = interpolPeaks(osc.CH3.eixos[0], osc.CH3.eixos[1])
+    interpolData(osc.CH1, peaks)
+    plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
     plt.show()
-    # '''
+
+    process_fft(osc.CH1)
+
+    plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
+    plt.show()
 
 tsl = TSL()
 mso = MSO("CH1", "CH3", "250000", "10000000")
