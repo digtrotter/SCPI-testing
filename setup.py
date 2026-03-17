@@ -226,25 +226,6 @@ def process(channel):
 
     channel.eixos = (x, y)
 
-def process_fft(channel):
-    y_raw = numpy.asarray(channel.eixos[1])
-    y_mean = y_raw - numpy.mean(y_raw)
-    y = detrend(y_mean)
-
-    N = len(channel.eixos[0])
-    dt = 1 # measure fiber and change it to Free Spectral Range
-    
-    fft_values = numpy.fft.rfft(y)
-    frequencies = numpy.fft.rfftfreq(N, dt)
-    magnitudes = (2.0 / N) * numpy.abs(fft_values)
-
-    try:
-        magnitudes[0] /= 2.0 # compensating 0hz lack of negative freq
-    except Exception:
-            print("empty array")
-
-    channel.eixos = (frequencies, magnitudes)
-
 def interpolPeaks(x_list, y_list, upsample_factor=10, prominence=None, distance=None):
     x = numpy.asarray(x_list)
     y = numpy.asarray(y_list)
@@ -262,7 +243,7 @@ def interpolPeaks(x_list, y_list, upsample_factor=10, prominence=None, distance=
     
     return (peak_x, peak_y), peaks_indices
 
-def interpolData(channel, peaks, upsample_factor=10):
+def interpolData(channel, peaks, fiber_length=55, n_g=1.468, upsample_factor=10):
     x = numpy.array(channel.eixos[0])
     y = numpy.array(channel.eixos[1])
 
@@ -275,13 +256,34 @@ def interpolData(channel, peaks, upsample_factor=10):
     linear_x = x_interp[peaks]
     linear_y = y_interp[peaks]
 
+    c = 299792458.0 
+    channel.xincr = c / (n_g * fiber_length)
     channel.eixos = (linear_x, linear_y)
 
-def process_space(channel, sweep_rate_hz_s, n_g=1.468):
+def process_fft(channel):
+    y_raw = numpy.asarray(channel.eixos[1])
+    y_mean = y_raw - numpy.mean(y_raw)
+    y = detrend(y_mean)
+
+    N = len(channel.eixos[0])
+    dt = channel.xincr
+
+    fft_values = numpy.fft.rfft(y)
+    frequencies = numpy.fft.rfftfreq(N, dt)
+    magnitudes = (2.0 / N) * numpy.abs(fft_values)
+
+    try:
+        magnitudes[0] /= 2.0 # compensating 0hz lack of negative freq
+    except Exception:
+            print("empty array")
+
+    channel.eixos = (frequencies, magnitudes)
+
+def process_space(channel, n_g=1.468):
     beat_frequencies, magnitudes = channel.eixos
     c = 299792458.0 
     
-    distances_meters = (c * beat_frequencies) / (2 * n_g * sweep_rate_hz_s)
+    distances_meters = (c * beat_frequencies) / (2 * n_g)
     reflectivity_db = 20 * numpy.log10(magnitudes + 1e-12)
     
     channel.eixos = (distances_meters, reflectivity_db)
@@ -376,8 +378,7 @@ def mockAll(osc, laser):
     plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
     plt.show()
     
-    speed_hz = mock_speed_hz()
-    process_space(osc.CH1, speed_hz)
+    process_space(osc.CH1)
     plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
     plt.show()
 
