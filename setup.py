@@ -13,48 +13,22 @@ matplotlib.use('TkAgg')
 
 # código com o objetivo de rodar em modo interativo (adicionar flag -i no comando)
 
-class TSL:
-    def __init__(self):
-        self.ip = '192.168.1.100'
-        self.resource = f'TCPIP0::{self.ip}::5000::SOCKET'
-        try:
-            self.instance = rm.open_resource(self.resource, open_timeout=700) # works for pyvisa-py, "open_timeout" is confusing on documentation
-            self.instance.read_termination = '\r'
-            self.instance.write_termination = '\r'
-        except Exception:
-            print("incapaz de conectar ao TSL")
-
-    def query(self, command):
-        try:
-            print(self.instance.query(command))
-        except Exception:
-            print("sem resposta")
-
-    def write(self, command):
-        try:
-            self.instance.write(command)
-        except Exception:
-            print("incapaz de enviar comando")
-
-    def sweep(self):
-        self.write('power:state 1')
-        self.write('wav:swe 1')
-        while True:
-            if (self.instance.query('wav:swe?') == '+0'):
-                return
-
 class Dados:
     def __init__(self, nome: str):
         '''
-        "nome" virá da GUI durante a instanciação. Os outros valores são atualizados
+        "nome" vem da GUI;
+        "eixos" é reservado para cálculos e plottagem;
+        outros atributos vêm após execução de uma varredura
         '''
         self.nome = nome # (CH1, CH2, CH3, CH4)
+
         self.valores = None
-        self.numPts = None
-        self.zero = None
-        self.ymult = None
-        self.xincr = None
-        self.eixos = None
+        self.numPts  = None
+        self.zero    = None
+        self.ymult   = None
+        self.xincr   = None
+
+        self.eixos   = None
     
     def updateValues(self, valores):
         self.valores = valores
@@ -122,11 +96,48 @@ class MSO:
         except Exception:
             print("incapaz de enviar comando")
 
+class TSL:
+    def __init__(self):
+        self.ip = '192.168.1.100'
+        self.resource = f'TCPIP0::{self.ip}::5000::SOCKET'
+        
+        self.velocidade = None
+        self.comprimento_inicial = None
+        self.comprimento_final = None
+
+        try:
+            self.instance = rm.open_resource(self.resource, open_timeout=700) # works for pyvisa-py, "open_timeout" is confusing on documentation
+            self.instance.read_termination = '\r'
+            self.instance.write_termination = '\r'
+        except Exception:
+            print("incapaz de conectar ao TSL")
+
+    def query(self, command):
+        try:
+            print(self.instance.query(command))
+        except Exception:
+            print("sem resposta")
+
+    def write(self, command):
+        try:
+            self.instance.write(command)
+        except Exception:
+            print("incapaz de enviar comando")
+
+    def sweep(self):
+        self.write('power:state 1')
+        self.write('wav:swe 1')
+        while True:
+            if (self.instance.query('wav:swe?') == '+0'):
+                return
 
 ############################################################
 
 def setup(osc, laser, canal1: str, canal2: str):
     laser.write('power:state 1')
+    laser.write('wav:sweep:start 1.515e-6')
+    laser.write('wav:sweep:stop 1.575e-6')
+    laser.write('wav:sweep:speed 2')
 
     osc.CH1 = Dados(canal1)
     osc.CH3 = Dados(canal2)
@@ -221,7 +232,7 @@ def process_fft(channel):
     y = detrend(y_mean)
 
     N = len(channel.eixos[0])
-    dt = channel.xincr 
+    dt = 1 # measure fiber and change it to Free Spectral Range
     
     fft_values = numpy.fft.rfft(y)
     frequencies = numpy.fft.rfftfreq(N, dt)
@@ -266,6 +277,15 @@ def interpolData(channel, peaks, upsample_factor=10):
 
     channel.eixos = (linear_x, linear_y)
 
+def process_space(channel, sweep_rate_hz_s, n_g=1.468):
+    beat_frequencies, magnitudes = channel.eixos
+    c = 299792458.0 
+    
+    distances_meters = (c * beat_frequencies) / (2 * n_g * sweep_rate_hz_s)
+    reflectivity_db = 20 * numpy.log10(magnitudes + 1e-12)
+    
+    channel.eixos = (distances_meters, reflectivity_db)
+
 def plotDados(channel):
     print('plot')
     plt.plot(channel.eixos[0], channel.eixos[1]) # marker='o' adds markers to the data points
@@ -281,6 +301,20 @@ def plotDados(channel):
 
 def autoPlot():
     plotDados(sweepCurve(mso, tsl, "CH1", "CH3"))
+
+def mock_speed_hz(comprimento_inicial=1.515e-6, comprimento_final=1.575e-6, velocidade=2e-9):
+    wav_start = comprimento_inicial
+    wav_end  = comprimento_final
+    wav_speed = velocidade
+    
+    c = 299792458.0
+    time = abs(wav_start - wav_end) / wav_speed
+
+    freq_start = c / wav_start
+    freq_end = c / wav_end
+    freq_speed = abs(freq_start - freq_end) / time
+
+    return freq_speed
 
 def mockData(ch_name: str):
     
@@ -339,7 +373,11 @@ def mockAll(osc, laser):
     plt.show()
 
     process_fft(osc.CH1)
-
+    plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
+    plt.show()
+    
+    speed_hz = mock_speed_hz()
+    process_space(osc.CH1, speed_hz)
     plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
     plt.show()
 
