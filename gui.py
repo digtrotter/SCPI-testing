@@ -44,6 +44,58 @@ class App(tk.Tk):
         self.fft_frame.config(text="FFT")
         self.fft_frame.grid(row=1, column=1, padx=5, pady=5, sticky="new")
 
+
+    def plot_all(self, dados):
+        print('plottando dados')
+        self.graph_frame.plot_graph(dados)
+        print('plottando fft')
+        self.fft_frame.plot_graph(dados)
+
+    def sweepStart(self, mso: setup.MSO, tsl: setup.TSL, canal1: str, canal2: str, amostragem: str, tempo: str):
+        if (self.acquiring):
+            print("varredura já começou")
+            return
+
+        self.acquiring = True
+        self.bottom_frame.start_task()
+        
+        setup.setup(mso, tsl, canal1, canal2)
+        self.mso.write('ACQ:STATE RUN')
+        self.tsl.write('power:state 1')
+        self.tsl.write('wav:swe 1')
+        self.after(0, self.sweepState)
+
+    def sweepState(self):
+        try:
+            if (self.tsl.instance.query('wav:swe?') == '+0'):
+                self.after(0, self.sweepEnd)
+            else:
+                self.after(1, self.sweepState)
+        except Exception:
+            print("erro de comunicação durante varredura")
+            self.after(0, self.sweepEnd)
+
+    def sweepEnd(self):
+        self.mso.write('ACQ:STATE STOP')
+        
+        try:
+            self.mso.write('DATA:SOURCE CH1')
+            self.mso.getWFMO(self.mso.acquisition)
+            self.mso.acquisition.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+
+            self.mso.write('DATA:SOURCE CH3')
+            self.mso.getWFMO(self.mso.kclock)
+            self.mso.kclock.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+            setup.process(self.mso.acquisition)
+            self.plot_all(self.mso.acquisition.eixos)
+
+        except Exception:
+            print("incapaz de plottar dados")
+        
+        finally:
+            self.acquiring = False
+            self.bottom_frame.stop_task()
+
 class FrameDAQ(ttk.Labelframe):
 
     '''     label+widget organization (#6 is button)
@@ -199,7 +251,7 @@ class FrameSave(ttk.Labelframe):
         self.button1 = ttk.Button(self, text="Escolher Diretório", command=self.stop_task)
         self.button1.grid(row=1, column=4, padx=5, pady=(0,10), sticky="ew")
 
-        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:sweepStart(mso=root.mso, tsl=root.tsl, canal1=root.left_frame.comboboxSelected[0].get(), canal2=root.left_frame.comboboxSelected[1].get(), amostragem=root.left_frame.comboboxSelected[2].get(), tempo=root.left_frame.comboboxSelected[3].get()))
+        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:root.sweepStart(mso=root.mso, tsl=root.tsl, canal1=root.left_frame.comboboxSelected[0].get(), canal2=root.left_frame.comboboxSelected[1].get(), amostragem=root.left_frame.comboboxSelected[2].get(), tempo=root.left_frame.comboboxSelected[3].get()))
         self.button2.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
         self.progress = ttk.Progressbar(self, mode="indeterminate", maximum=60, )
         self.progress.grid(row=2, column=1, padx=5, pady=(0,10), columnspan=4, sticky="ew")
@@ -212,56 +264,6 @@ class FrameSave(ttk.Labelframe):
 
 #####################################################
 
-def plot_all(dados):
-    print('plottando dados')
-    root.graph_frame.plot_graph(dados)
-    print('plottando fft')
-    root.fft_frame.plot_graph(dados)
-
-def sweepStart(mso: setup.MSO, tsl: setup.TSL, canal1: str, canal2: str, amostragem: str, tempo: str):
-    if (root.acquiring):
-        print("varredura já começou")
-        return
-
-    root.acquiring = True
-    root.bottom_frame.start_task()
-    
-    setup.setup(mso, tsl, canal1, canal2)
-    root.mso.write('ACQ:STATE RUN')
-    root.tsl.write('power:state 1')
-    root.tsl.write('wav:swe 1')
-    sweepState()
-
-def sweepState():
-    try:
-        if (root.tsl.instance.query('wav:swe?') == '+0'):
-            root.after(0, sweepEnd)
-        else:
-            root.after(1, sweepState)
-    except Exception:
-        print("erro de comunicação durante varredura")
-        root.after(0, sweepEnd)
-
-def sweepEnd():
-    root.mso.write('ACQ:STATE STOP')
-    
-    try:
-        root.mso.write('DATA:SOURCE CH1')
-        root.mso.getWFMO(root.mso.CH1)
-        root.mso.CH1.valores = root.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
-
-        root.mso.write('DATA:SOURCE CH3')
-        root.mso.getWFMO(root.mso.CH3)
-        root.mso.CH3.valores = root.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
-        setup.process(root.mso.CH1)
-        plot_all(root.mso.CH1.eixos)
-
-    except Exception:
-        print("incapaz de plottar dados")
-    
-    finally:
-        root.acquiring = False
-        root.bottom_frame.stop_task()
 
 root = App(setup.tsl, setup.mso)
 root.mainloop()

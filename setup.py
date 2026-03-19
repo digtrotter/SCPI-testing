@@ -46,8 +46,8 @@ class MSO:
     def __init__(self, canal1: str, canal2: str, amostragem: str, tempo: str):
         self.ip = '192.168.1.111'
         self.resource = f'TCPIP0::{self.ip}::4000::SOCKET'
-        self.CH1 = Dados(canal1)
-        self.CH3 = Dados(canal2)
+        self.acquisition = Dados(canal1)
+        self.kclock = Dados(canal2)
         self.amostragem = amostragem
         self.tempo = tempo
         try:
@@ -60,8 +60,8 @@ class MSO:
         '''
         atualiza as variáveis vindas da GUI
         '''
-        self.CH1 = Dados(canal1)
-        self.CH3 = Dados(canal2)
+        self.acquisition = Dados(canal1)
+        self.kclock = Dados(canal2)
         self.amostragem = amostragem
         self.tempo = tempo
     
@@ -139,15 +139,15 @@ def setup(osc, laser, canal1: str, canal2: str):
     laser.write('wav:sweep:stop 1.575e-6')
     laser.write('wav:sweep:speed 2')
 
-    osc.CH1 = Dados(canal1)
-    osc.CH3 = Dados(canal2)
+    osc.acquisition = Dados(canal1)
+    osc.kclock = Dados(canal2)
 
     osc.write('SEL:CH1 OFF')
     osc.write('SEL:CH2 OFF')
     osc.write('SEL:CH3 OFF')
     osc.write('SEL:CH4 OFF')
-    osc.write(f'sel:{osc.CH1.nome} on')
-    osc.write(f'sel:{osc.CH3.nome} on')
+    osc.write(f'sel:{osc.acquisition.nome} on')
+    osc.write(f'sel:{osc.kclock.nome} on')
     
     #temp
     osc.write('ch3:offset 1.457')
@@ -161,7 +161,7 @@ def setup(osc, laser, canal1: str, canal2: str):
     osc.write("ch1:probefunc:extatten 10")
     #
     
-    osc.setupWFMO(osc.CH1.nome)
+    osc.setupWFMO(osc.acquisition.nome)
 
     osc.write('hor:mode man')
     osc.write("hor:mode:man:configure horizontalscale")
@@ -187,19 +187,19 @@ def sweepCurve(osc, laser, canal1: str, canal2: str):
     osc.write('ACQ:STATE STOP')
     
     print('metadados 1')
-    osc.getWFMO(osc.CH1)
+    osc.getWFMO(osc.acquisition)
     print('dados 1')
-    osc.CH1.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+    osc.acquisition.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
     
     print('metadados 2')
-    osc.getWFMO(osc.CH3)
+    osc.getWFMO(osc.kclock)
     print('dados 2')
-    osc.CH3.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+    osc.kclock.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
     
     print('processamento')
-    process(osc.CH1)
+    process(osc.acquisition)
     print('retornando eixos')
-    return osc.CH1
+    return osc.acquisition
 
 def getPeaks(channel):
     
@@ -226,9 +226,9 @@ def process(channel):
 
     channel.eixos = (x, y)
 
-def interpolPeaks(x_list, y_list, upsample_factor=10, prominence=None, distance=None):
-    x = numpy.asarray(x_list)
-    y = numpy.asarray(y_list)
+def interpolPeaks(channel, upsample_factor=10, prominence=None, distance=None):
+    x = numpy.asarray(channel.eixos[0])
+    y = numpy.asarray(channel.eixos[1])
 
     num_interp_points = len(x) * upsample_factor
     spline = CubicSpline(x, y)
@@ -240,8 +240,9 @@ def interpolPeaks(x_list, y_list, upsample_factor=10, prominence=None, distance=
     
     peak_x = x_interp[peaks_indices]
     peak_y = y_interp[peaks_indices]
-    
-    return (peak_x, peak_y), peaks_indices
+
+    channel.eixos = (peak_x, peak_y)
+    return peaks_indices
 
 def interpolData(channel, peaks, fiber_length=55, n_g=1.468, upsample_factor=10):
     x = numpy.array(channel.eixos[0])
@@ -361,25 +362,25 @@ def mockWFMO(ch_name: str):
 def mockAll(osc, laser):
     setup(osc, laser, "ch1", "ch3")
     
-    osc.CH1.valores = mockData("ch1")
-    osc.CH1.numPts, osc.CH1.ymult, osc.CH1.xincr, osc.CH1.zero = mockWFMO("ch1")
-    process(osc.CH1)
+    osc.acquisition.valores = mockData("ch1")
+    osc.acquisition.numPts, osc.acquisition.ymult, osc.acquisition.xincr, osc.acquisition.zero = mockWFMO("ch1")
+    process(osc.acquisition)
 
-    osc.CH3.valores = mockData("ch3")
-    osc.CH3.numPts, osc.CH3.ymult, osc.CH3.xincr, osc.CH3.zero = mockWFMO("ch3")
-    process(osc.CH3)
+    osc.kclock.valores = mockData("ch3")
+    osc.kclock.numPts, osc.kclock.ymult, osc.kclock.xincr, osc.kclock.zero = mockWFMO("ch3")
+    process(osc.kclock)
 
-    osc.CH3.eixos, peaks = interpolPeaks(osc.CH3.eixos[0], osc.CH3.eixos[1])
-    interpolData(osc.CH1, peaks)
-    plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
+    osc.kclock.eixos, peaks = interpolPeaks(osc.kclock.eixos[0], osc.kclock.eixos[1])
+    interpolData(osc.acquisition, peaks)
+    plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.show()
 
-    process_fft(osc.CH1)
-    plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
+    process_fft(osc.acquisition)
+    plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.show()
     
-    process_space(osc.CH1)
-    plt.plot(osc.CH1.eixos[0], osc.CH1.eixos[1])
+    process_space(osc.acquisition)
+    plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.show()
 
 tsl = TSL()
