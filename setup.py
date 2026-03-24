@@ -370,7 +370,7 @@ def mockAll(osc, laser):
     osc.kclock.numPts, osc.kclock.ymult, osc.kclock.xincr, osc.kclock.zero = mockWFMO("ch3")
     process(osc.kclock)
 
-    osc.kclock.eixos, peaks = interpolPeaks(osc.kclock.eixos[0], osc.kclock.eixos[1])
+    peaks = interpolPeaks(osc.kclock.eixos[0], osc.kclock.eixos[1])
     interpolData(osc.acquisition, peaks)
     plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.show()

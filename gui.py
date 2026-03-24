@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 import matplotlib.figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 import numpy as np
 
@@ -44,14 +44,13 @@ class App(tk.Tk):
         self.fft_frame.config(text="FFT")
         self.fft_frame.grid(row=1, column=1, padx=5, pady=5, sticky="new")
 
-
     def plot_all(self, dados):
         print('plottando dados')
         self.graph_frame.plot_graph(dados)
         print('plottando fft')
         self.fft_frame.plot_graph(dados)
 
-    def sweepStart(self, mso: setup.MSO, tsl: setup.TSL, canal1: str, canal2: str, amostragem: str, tempo: str):
+    def sweep_start(self, canal1: str, canal2: str, amostragem: str, tempo: str):
         if (self.acquiring):
             print("varredura já começou")
             return
@@ -59,23 +58,23 @@ class App(tk.Tk):
         self.acquiring = True
         self.bottom_frame.start_task()
         
-        setup.setup(mso, tsl, canal1, canal2)
+        setup.setup(self.mso, self.tsl, canal1, canal2)
         self.mso.write('ACQ:STATE RUN')
         self.tsl.write('power:state 1')
         self.tsl.write('wav:swe 1')
-        self.after(0, self.sweepState)
+        self.after(0, self.sweeping)
 
-    def sweepState(self):
+    def sweeping(self):
         try:
             if (self.tsl.instance.query('wav:swe?') == '+0'):
-                self.after(0, self.sweepEnd)
+                self.after(0, self.sweep_end)
             else:
-                self.after(1, self.sweepState)
+                self.after(1, self.sweeping)
         except Exception:
             print("erro de comunicação durante varredura")
-            self.after(0, self.sweepEnd)
+            self.after(0, self.sweep_end)
 
-    def sweepEnd(self):
+    def sweep_end(self):
         self.mso.write('ACQ:STATE STOP')
         
         try:
@@ -86,15 +85,26 @@ class App(tk.Tk):
             self.mso.write('DATA:SOURCE CH3')
             self.mso.getWFMO(self.mso.kclock)
             self.mso.kclock.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
-            setup.process(self.mso.acquisition)
-            self.plot_all(self.mso.acquisition.eixos)
+
+            self.after(0, self.process_data)
 
         except Exception:
-            print("incapaz de plottar dados")
-        
-        finally:
-            self.acquiring = False
-            self.bottom_frame.stop_task()
+            print("erro recebendo os dados")
+    
+    def process_data(self):
+        setup.process(self.mso.acquisition)# process ch1
+        setup.process(self.mso.kclock)# process ch3
+
+        peaks = setup.interpolPeaks(self.mso.kclock) # interpolate ch3 to get peaks
+        setup.interpolData(self.mso.acquisition, peaks)# interpolate ch1 and convert to k-domain
+
+        setup.process_fft(self.mso.acquisition) # convert to time
+        setup.process_space(self.mso.acquisition) # convert to space
+
+        self.plot_all(self.mso.acquisition.eixos)
+
+        self.bottom_frame.stop_task()
+        self.acquiring = False
 
 class FrameDAQ(ttk.Labelframe):
 
@@ -189,8 +199,11 @@ class FrameData(ttk.Labelframe):
         self.ax.grid(True)
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
-        self.canvas_widget = self.canvas.get_tk_widget()
 
+        self.toolbar = NavigationToolbar2Tk(self.canvas, self)
+        self.toolbar.update()        
+
+        self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(padx=10, pady=5, fill='both', expand=True)
 
     def plot_graph(self, data):
@@ -251,7 +264,7 @@ class FrameSave(ttk.Labelframe):
         self.button1 = ttk.Button(self, text="Escolher Diretório", command=self.stop_task)
         self.button1.grid(row=1, column=4, padx=5, pady=(0,10), sticky="ew")
 
-        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:root.sweepStart(mso=root.mso, tsl=root.tsl, canal1=root.left_frame.comboboxSelected[0].get(), canal2=root.left_frame.comboboxSelected[1].get(), amostragem=root.left_frame.comboboxSelected[2].get(), tempo=root.left_frame.comboboxSelected[3].get()))
+        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:root.sweep_start(canal1=root.left_frame.comboboxSelected[0].get(), canal2=root.left_frame.comboboxSelected[1].get(), amostragem=root.left_frame.comboboxSelected[2].get(), tempo=root.left_frame.comboboxSelected[3].get()))
         self.button2.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
         self.progress = ttk.Progressbar(self, mode="indeterminate", maximum=60, )
         self.progress.grid(row=2, column=1, padx=5, pady=(0,10), columnspan=4, sticky="ew")
