@@ -237,14 +237,14 @@ def interpolPeaks(channel, upsample_factor=10, prominence=None, distance=None):
     y_interp = spline(x_interp)
     
     peaks_indices, properties = find_peaks(y_interp, prominence=prominence, distance=distance)
-    
+
     peak_x = x_interp[peaks_indices]
     peak_y = y_interp[peaks_indices]
 
     channel.eixos = (peak_x, peak_y)
     return peaks_indices
 
-def interpolData(channel, peaks, fiber_length=55, n_g=1.468, upsample_factor=10):
+def interpolData(channel, peaks, upsample_factor=10):
     x = numpy.array(channel.eixos[0])
     y = numpy.array(channel.eixos[1])
 
@@ -257,8 +257,9 @@ def interpolData(channel, peaks, fiber_length=55, n_g=1.468, upsample_factor=10)
     linear_x = x_interp[peaks]
     linear_y = y_interp[peaks]
 
-    c = 299792458.0 
-    channel.xincr = c / (n_g * fiber_length)
+    new_xincr = (linear_x[-1] - linear_x[0]) / len(linear_x)
+    
+    channel.xincr = new_xincr
     channel.eixos = (linear_x, linear_y)
 
 def process_fft(channel):
@@ -280,12 +281,14 @@ def process_fft(channel):
 
     channel.eixos = (frequencies, magnitudes)
 
-def process_space(channel, n_g=1.468):
+def process_space(channel, sweep_freq, n_g=1.468):
     beat_frequencies, magnitudes = channel.eixos
+    speed = sweep_freq
     c = 299792458.0 
+    magnitudes_normal = magnitudes / numpy.max(magnitudes)
     
-    distances_meters = (c * beat_frequencies) / (2 * n_g)
-    reflectivity_db = 20 * numpy.log10(magnitudes + 1e-12)
+    distances_meters = (c * beat_frequencies) / (2 * n_g * speed)
+    reflectivity_db = 10 * numpy.log10(magnitudes_normal + 1e-12)
     
     channel.eixos = (distances_meters, reflectivity_db)
 
@@ -370,16 +373,24 @@ def mockAll(osc, laser):
     osc.kclock.numPts, osc.kclock.ymult, osc.kclock.xincr, osc.kclock.zero = mockWFMO("ch3")
     process(osc.kclock)
 
-    peaks = interpolPeaks(osc.kclock.eixos[0], osc.kclock.eixos[1])
+    plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
+    plt.show()
+
+
+    peaks = interpolPeaks(osc.kclock)
     interpolData(osc.acquisition, peaks)
     plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.show()
+
+    plt.plot(osc.kclock.eixos[0], osc.kclock.eixos[1])
+    plt.show()
+
 
     process_fft(osc.acquisition)
     plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.show()
     
-    process_space(osc.acquisition)
+    process_space(osc.acquisition, mock_speed_hz())
     plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.show()
 

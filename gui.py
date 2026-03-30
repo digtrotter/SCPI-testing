@@ -18,7 +18,7 @@ class App(tk.Tk):
         self.acquiring = False
 
         self.title("OFDR")
-        self.geometry("800x600")
+        self.geometry("1200x1000")
         self.resizable(True, True)
 
         self.grid_columnconfigure((0,1), weight=1)
@@ -44,11 +44,11 @@ class App(tk.Tk):
         self.fft_frame.config(text="FFT")
         self.fft_frame.grid(row=1, column=1, padx=5, pady=5, sticky="new")
 
-    def plot_all(self, dados):
+    def plot_all(self, channel1, channel2):
         print('plottando dados')
-        self.graph_frame.plot_graph(dados)
+        self.graph_frame.plot_graph(channel1.eixos_pre)
         print('plottando fft')
-        self.fft_frame.plot_graph(dados)
+        self.fft_frame.plot_graph(channel2.eixos_pre)
 
     def sweep_start(self, canal1: str, canal2: str, amostragem: str, tempo: str):
         if (self.acquiring):
@@ -101,7 +101,7 @@ class App(tk.Tk):
         setup.process_fft(self.mso.acquisition) # convert to time
         setup.process_space(self.mso.acquisition) # convert to space
 
-        self.plot_all(self.mso.acquisition.eixos)
+        self.plot_all(self.mso.acquisition, self.mso.kclock)
 
         self.bottom_frame.stop_task()
         self.acquiring = False
@@ -226,31 +226,28 @@ class FrameFFT(ttk.Labelframe):
         self.fig = matplotlib.figure.Figure(figsize=(2, 2), dpi=100)
         self.ax = self.fig.add_subplot(111)
 
-        self.ax.set_xlabel("x")
-        self.ax.set_ylabel("y")
+        self.ax.set_xlabel("sample")
+        self.ax.set_ylabel("V")
         self.ax.grid(True)
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
-        self.canvas_widget = self.canvas.get_tk_widget()
 
+        self.toolbar = NavigationToolbar2Tk(self.canvas, self)
+        self.toolbar.update()        
+
+        self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(padx=10, pady=5, fill='both', expand=True)
 
-    def plot_graph(self, dados):
+    def plot_graph(self, data):
         self.ax.clear()
-        
-        temp = np.array(dados[1])
-        fft = np.fft.fft(temp)
-        magnitude = np.abs(fft)
-        half_point = len(temp) // 2
-        data = magnitude[:half_point] / len(temp)
-        
-        self.ax.plot(data)
-        self.ax.set_xlabel("x")
-        self.ax.set_ylabel("y")
-        self.ax.grid(True)
+
+        self.ax.plot(data[0], data[1])
+        self.ax.set_xlabel("sample")
+        self.ax.set_ylabel("V")
+        self.ax.grid(True) # Re-enable grid if desired
 
         self.canvas.draw()
-
+    
 class FrameSave(ttk.Labelframe):
     def __init__(self, container):
         super().__init__(container)
