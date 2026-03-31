@@ -4,9 +4,9 @@ from tkinter import ttk
 import matplotlib.figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
-import numpy as np
-
 import setup
+import processing
+import mock
 
 # tk interface
 
@@ -46,9 +46,9 @@ class App(tk.Tk):
 
     def plot_all(self, channel1, channel2):
         print('plottando dados')
-        self.graph_frame.plot_graph(channel1.eixos_pre)
+        self.graph_frame.plot_graph(channel1.eixos)
         print('plottando fft')
-        self.fft_frame.plot_graph(channel2.eixos_pre)
+        self.fft_frame.plot_graph(channel2.eixos)
 
     def sweep_start(self, canal1: str, canal2: str, amostragem: str, tempo: str):
         if (self.acquiring):
@@ -92,14 +92,18 @@ class App(tk.Tk):
             print("erro recebendo os dados")
     
     def process_data(self):
-        setup.process(self.mso.acquisition)# process ch1
-        setup.process(self.mso.kclock)# process ch3
+        processing.process(self.mso.acquisition)# process ch1
+        processing.process(self.mso.kclock)# process ch3
 
-        peaks = setup.interpolPeaks(self.mso.kclock) # interpolate ch3 to get peaks
-        setup.interpolData(self.mso.acquisition, peaks)# interpolate ch1 and convert to k-domain
+        peaks = processing.interpolPeaks(self.mso.kclock) # interpolate ch3 to get peaks
+        processing.interpolData(self.mso.acquisition, peaks)# interpolate ch1 and convert to k-domain
 
-        setup.process_fft(self.mso.acquisition) # convert to time
-        setup.process_space(self.mso.acquisition) # convert to space
+        # The sweep frequency needs to be properly passed from the GUI settings
+        # For now, we use the mock function as a placeholder
+        sweep_freq = mock.mock_speed_hz()
+
+        processing.process_fft(self.mso.acquisition) # convert to time
+        processing.process_space(self.mso.acquisition, sweep_freq) # convert to space
 
         self.plot_all(self.mso.acquisition, self.mso.kclock)
 
@@ -274,6 +278,8 @@ class FrameSave(ttk.Labelframe):
 
 #####################################################
 
-
-root = App(setup.tsl, setup.mso)
-root.mainloop()
+if __name__ == "__main__":
+    mso = setup.MSO("CH1", "CH3", "250000", "10000000")
+    tsl = setup.TSL()
+    root = App(tsl, mso)
+    root.mainloop()
