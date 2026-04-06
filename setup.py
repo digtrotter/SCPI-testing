@@ -1,5 +1,6 @@
 import pyvisa
 import time
+import json
 
 rm = pyvisa.ResourceManager("@py")
 
@@ -194,3 +195,41 @@ def sweepCurve(osc, laser, canal1: str, canal2: str):
     # process(osc.acquisition) 
     print('retornando eixos')
     return osc.acquisition
+
+def saveCurve(osc, laser, filename, canal1="CH1", canal2="CH3"):
+    setup(osc, laser, canal1, canal2)
+    osc.write('ACQ:STATE RUN')
+    laser.sweep()
+    osc.write('ACQ:STATE STOP')
+    
+    osc.getWFMO(osc.acquisition)
+    osc.acquisition.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+    
+    osc.getWFMO(osc.kclock)
+    osc.kclock.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+ 
+    acqWFMO = {
+            "numPts": f"{osc.acquisition.numPts}",
+            "zero": f"{osc.acquisition.zero}",
+            "ymult": f"{osc.acquisition.ymult}",
+            "xincr": f"{osc.acquisition.xincr}"}
+
+    clkWFMO = {
+            "numPts": f"{osc.kclock.numPts}",
+            "zero": f"{osc.kclock.zero}",
+            "ymult": f"{osc.kclock.ymult}",
+            "xincr": f"{osc.kclock.xincr}"}
+
+    with open(f"samples/acq-{filename}.json", 'w') as file:
+        json.dump(osc.acquisition.valores, file, indent=4)
+
+    with open(f"samples/acqWFMO-{filename}.json", 'w') as file:
+        json.dump(acqWFMO, file, indent=4)
+
+    with open(f"samples/clk-{filename}.json", 'w') as file:
+        json.dump(osc.kclock.valores, file, indent=4)
+
+    with open(f"samples/clkWFMO-{filename}.json", 'w') as file:
+        json.dump(clkWFMO, file, indent=4)
+
+    return
