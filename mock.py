@@ -1,9 +1,11 @@
 import json
-import numpy
+import matplotlib
 import matplotlib.pyplot as plt
 
-import processing # Import the new processing module
-import setup # Import the setup module for MSO and TSL classes
+import processing 
+import setup 
+
+matplotlib.use("TkAgg")
 
 def mock_speed_hz(comprimento_inicial=1.515e-6, comprimento_final=1.575e-6, velocidade=2e-9):
     wav_start = comprimento_inicial
@@ -19,66 +21,41 @@ def mock_speed_hz(comprimento_inicial=1.515e-6, comprimento_final=1.575e-6, velo
 
     return freq_speed
 
-def mockData(ch_name: str):
-    
-    if (ch_name.lower() == "ch1"):
-        path = "samples/ch1-valores.json"
-
-    elif (ch_name.lower() == "ch3"):
-        path = "samples/ch3-valores.json"
-    
-    else:
-        print("canal inválido")
-        return []
-
+def load_json(filename: str):
     try:
-        with open(path, 'r', encoding='utf-8') as arquivo:
+        with open(filename, 'r', encoding='utf-8') as arquivo:
             dados = json.load(arquivo)
             return dados
                 
     except Exception:
         print("o arquivo não foi encontrado.")
-        return []
-
-def mockWFMO(ch_name: str):
-    if (ch_name.lower() == "ch1"):
-        numPts = 7612160
-        ymult  = 3.125e-05
-        xincr  = 4e-06
-        zero   = 1.116
-
-    elif (ch_name.lower() == "ch3"):
-        numPts = 7612160
-        ymult  = 1.5625e-05
-        xincr  = 4e-06
-        zero   = 1.557
-    
-    else:
-        print("canal inválido")
         return None
 
-    return (numPts, ymult, xincr, zero)
-
-def mockAll(osc, laser):
-    # Use setup.setup for instrument configuration setup
-    setup.setup(osc, laser, "ch1", "ch3") # Assuming these are default mock channels
+def mockAll(osc, laser, filename):
+    setup.setup(osc, laser, "ch1", "ch3") 
     
-    osc.acquisition.valores = mockData("ch1")
-    osc.acquisition.numPts, osc.acquisition.ymult, osc.acquisition.xincr, osc.acquisition.zero = mockWFMO("ch1")
-    processing.process(osc.acquisition) # Use processing.process
-    osc.acquisition.eixos_pre = osc.acquisition.eixos # Keep original for plotting
+    osc.acquisition.valores = load_json(f"samples/acq-{filename}.json")
+    acqWFMO = load_json(f"samples/acqWFMO-{filename}.json")
+    osc.acquisition.numPts = acqWFMO["numPts"]
+    osc.acquisition.ymult = acqWFMO["ymult"]
+    osc.acquisition.xincr = acqWFMO["xincr"]
+    osc.acquisition.zero = acqWFMO["zero"]
+    processing.process(osc.acquisition) 
 
-    osc.kclock.valores = mockData("ch3")
-    osc.kclock.numPts, osc.kclock.ymult, osc.kclock.xincr, osc.kclock.zero = mockWFMO("ch3")
-    processing.process(osc.kclock) # Use processing.process
-    osc.kclock.eixos_pre = osc.kclock.eixos # Keep original for plotting
+    osc.kclock.valores = load_json(f"samples/clk-{filename}.json")
+    clkWFMO = load_json(f"samples/clkWFMO-{filename}.json")
+    osc.kclock.numPts = clkWFMO["numPts"]
+    osc.kclock.ymult = clkWFMO["ymult"]
+    osc.kclock.xincr = clkWFMO["xincr"]
+    osc.kclock.zero = clkWFMO["zero"]
+    processing.process(osc.kclock) 
 
     plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.title('Mock Raw Data - Channel 1')
     plt.show()
 
-    peaks = processing.interpolPeaks(osc.kclock) # Use processing.interpolPeaks
-    processing.interpolData(osc.acquisition, peaks) # Use processing.interpolData
+    peaks = processing.interpolPeaks(osc.kclock) 
+    processing.interpolData(osc.acquisition, peaks) 
     plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.title('Mock Interpolated Data - Channel 1')
     plt.show()
@@ -87,21 +64,16 @@ def mockAll(osc, laser):
     plt.title('Mock Interpolated Data - K-Clock')
     plt.show()
 
-    processing.process_fft(osc.acquisition) # Use processing.process_fft
+    processing.process_fft(osc.acquisition) 
     plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.title('Mock FFT Data - Channel 1')
     plt.show()
     
-    processing.process_space(osc.acquisition, mock_speed_hz()) # Use processing.process_space
+    processing.process_space(osc.acquisition, mock_speed_hz()) 
     plt.plot(osc.acquisition.eixos[0], osc.acquisition.eixos[1])
     plt.title('Mock Spatial Data - Channel 1')
     plt.show()
 
 if __name__ == "__main__":
-    # Create mock MSO and TSL objects (or use the real ones if available)
     mock_mso = setup.MSO("CH1", "CH3", "250000", "10000000")
     mock_tsl = setup.TSL()
-    
-    print("Running mock processing pipeline...")
-    mockAll(mock_mso, mock_tsl)
-    print("Mock processing complete.")
