@@ -209,16 +209,16 @@ def saveCurve(osc, laser, filename, canal1="CH1", canal2="CH3"):
     osc.kclock.valores = osc.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
  
     acqWFMO = {
-            "numPts": f"{osc.acquisition.numPts}",
-            "zero": f"{osc.acquisition.zero}",
-            "ymult": f"{osc.acquisition.ymult}",
-            "xincr": f"{osc.acquisition.xincr}"}
+            "numPts": osc.acquisition.numPts,
+            "zero": osc.acquisition.zero,
+            "ymult": osc.acquisition.ymult,
+            "xincr": osc.acquisition.xincr}
 
     clkWFMO = {
-            "numPts": f"{osc.kclock.numPts}",
-            "zero": f"{osc.kclock.zero}",
-            "ymult": f"{osc.kclock.ymult}",
-            "xincr": f"{osc.kclock.xincr}"}
+            "numPts": osc.kclock.numPts,
+            "zero": osc.kclock.zero,
+            "ymult": osc.kclock.ymult,
+            "xincr": osc.kclock.xincr}
 
     with open(f"samples/acq-{filename}.json", 'w') as file:
         json.dump(osc.acquisition.valores, file, indent=4)
