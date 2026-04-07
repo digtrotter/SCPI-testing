@@ -127,11 +127,11 @@ class TSL:
 
 ############################################################
 
-def setup(osc, laser, canal1: str, canal2: str):
+def setup(osc, laser, canal1: str, canal2: str, velocidade: str, comprimento_inicial: str, comprimento_final: str):
     laser.write('power:state 1')
-    laser.write('wav:sweep:start 1.515e-6')
-    laser.write('wav:sweep:stop 1.575e-6')
-    laser.write('wav:sweep:speed 2')
+    laser.write(f'wav:sweep:start {comprimento_inicial}e-9')
+    laser.write(f'wav:sweep:stop {comprimento_final}e-9')
+    laser.write(f'wav:sweep:speed {velocidade}')
 
     osc.acquisition = Dados(canal1)
     osc.kclock = Dados(canal2)

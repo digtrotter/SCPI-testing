@@ -18,39 +18,33 @@ class App(tk.Tk):
         self.acquiring = False
 
         self.title("OFDR")
-        self.geometry("1200x1000")
+        self.geometry("1000x800")
         self.resizable(True, True)
 
         self.grid_columnconfigure((0,1), weight=1)
-        self.grid_rowconfigure((0,1,2), weight=1)
+        self.grid_rowconfigure((0,1,2,3), weight=1)
 
         self.left_frame = FrameDAQ(self)
         self.left_frame.config(text="Config MSO24")
-        self.left_frame.grid(row=0, column=0, padx=5, pady=5, sticky="new")
+        self.left_frame.grid(row=0, column=0, padx=5, pady=5, sticky="news")
         
         self.right_frame = FrameTSL(self)
         self.right_frame.config(text="Config TSL-570")
-        self.right_frame.grid(row=0, column=1, padx=5, pady=5, sticky="new")
+        self.right_frame.grid(row=0, column=1, padx=5, pady=5, sticky="news")
 
         self.bottom_frame = FrameSave(self)
         self.bottom_frame.config(text="Armazenamento de Dados")
-        self.bottom_frame.grid(row=2, column=0, padx=5, pady=5, columnspan=2, sticky="new")
+        self.bottom_frame.grid(row=3, column=0, padx=5, pady=5, columnspan=2, sticky="news")
 
         self.graph_frame = FrameData(self)
         self.graph_frame.config(text="Gráfico")
-        self.graph_frame.grid(row=1, column=0, padx=5, pady=5, sticky="new")
+        self.graph_frame.grid(row=1, column=0, padx=5, pady=5, columnspan=2, rowspan=2, sticky="news")
         
-        self.fft_frame = FrameFFT(self)
-        self.fft_frame.config(text="FFT")
-        self.fft_frame.grid(row=1, column=1, padx=5, pady=5, sticky="new")
-
-    def plot_all(self, channel1, channel2):
+    def plot_all(self, channel1):
         print('plottando dados')
         self.graph_frame.plot_graph(channel1.eixos)
-        print('plottando fft')
-        self.fft_frame.plot_graph(channel2.eixos)
 
-    def sweep_start(self, canal1: str, canal2: str, amostragem: str, tempo: str):
+    def sweep_start(self, canal1: str, canal2: str, amostragem: str, tempo: str, velocidade: str, comprimento_inicial: str, comprimento_final: str):
         if (self.acquiring):
             print("varredura já começou")
             return
@@ -58,7 +52,7 @@ class App(tk.Tk):
         self.acquiring = True
         self.bottom_frame.start_task()
         
-        setup.setup(self.mso, self.tsl, canal1, canal2)
+        setup.setup(self.mso, self.tsl, canal1, canal2, velocidade, comprimento_inicial, comprimento_final)
         self.mso.write('ACQ:STATE RUN')
         self.tsl.write('power:state 1')
         self.tsl.write('wav:swe 1')
@@ -105,7 +99,7 @@ class App(tk.Tk):
         processing.process_fft(self.mso.acquisition) # convert to time
         processing.process_space(self.mso.acquisition, sweep_freq) # convert to space
 
-        self.plot_all(self.mso.acquisition, self.mso.kclock)
+        self.plot_all(self.mso.acquisition)
 
         self.bottom_frame.stop_task()
         self.acquiring = False
@@ -157,8 +151,8 @@ class FrameTSL(ttk.Labelframe):
     def __init__(self, container):
         super().__init__(container)
         
-        self.comboboxOptions = [["1", "2", "4", "5", "10", "20"]]
-        self.comboboxSelected = [tk.StringVar(value="5")]
+        self.comboboxOptions = [["1", "2", "5", "10", "20"]]
+        self.comboboxSelected = [tk.StringVar(value="2")]
 
         self.grid_columnconfigure((0,1), weight=1)
         self.grid_rowconfigure((0,1,2), weight=1)
@@ -171,13 +165,13 @@ class FrameTSL(ttk.Labelframe):
         self.label2 = ttk.Label(self, text="Comprimento de onda inicial")
         self.label2.grid(row=2, column=0, sticky="nsew", pady=(5, 0))
         self.entry2 = ttk.Entry(self)
-        self.entry2.insert(0, "1480")
+        self.entry2.insert(0, "1515")
         self.entry2.grid(row=3, column=0, padx=5, pady=(0, 10), sticky="nsew")
 
         self.label3 = ttk.Label(self, text="Comprimento de onda final")
         self.label3.grid(row=2, column=1, sticky="nsew", pady=(5, 0))
         self.entry3 = ttk.Entry(self)
-        self.entry3.insert(0, "1640")
+        self.entry3.insert(0, "1575")
         self.entry3.grid(row=3, column=1, padx=5, pady=(0, 10), sticky="nsew")
 
         self.label4 = ttk.Label(self, text="Instrução SCPI")
@@ -220,38 +214,6 @@ class FrameData(ttk.Labelframe):
 
         self.canvas.draw()
 
-class FrameFFT(ttk.Labelframe):
-    def __init__(self, container):
-        super().__init__(container)
-
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-
-        self.fig = matplotlib.figure.Figure(figsize=(2, 2), dpi=100)
-        self.ax = self.fig.add_subplot(111)
-
-        self.ax.set_xlabel("sample")
-        self.ax.set_ylabel("V")
-        self.ax.grid(True)
-
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self)
-
-        self.toolbar = NavigationToolbar2Tk(self.canvas, self)
-        self.toolbar.update()        
-
-        self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(padx=10, pady=5, fill='both', expand=True)
-
-    def plot_graph(self, data):
-        self.ax.clear()
-
-        self.ax.plot(data[0], data[1])
-        self.ax.set_xlabel("sample")
-        self.ax.set_ylabel("V")
-        self.ax.grid(True) # Re-enable grid if desired
-
-        self.canvas.draw()
-    
 class FrameSave(ttk.Labelframe):
     def __init__(self, container):
         super().__init__(container)
@@ -265,7 +227,7 @@ class FrameSave(ttk.Labelframe):
         self.button1 = ttk.Button(self, text="Escolher Diretório", command=self.stop_task)
         self.button1.grid(row=1, column=4, padx=5, pady=(0,10), sticky="ew")
 
-        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:root.sweep_start(canal1=root.left_frame.comboboxSelected[0].get(), canal2=root.left_frame.comboboxSelected[1].get(), amostragem=root.left_frame.comboboxSelected[2].get(), tempo=root.left_frame.comboboxSelected[3].get()))
+        self.button2 = ttk.Button(self, text="Iniciar Varredura", command=lambda:root.sweep_start(canal1=root.left_frame.comboboxSelected[0].get(), canal2=root.left_frame.comboboxSelected[1].get(), amostragem=root.left_frame.comboboxSelected[2].get(), tempo=root.left_frame.comboboxSelected[3].get(), velocidade=root.right_frame.comboboxSelected[0].get(), comprimento_inicial=root.right_frame.entry2.get(), comprimento_final=root.right_frame.entry3.get()))
         self.button2.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
         self.progress = ttk.Progressbar(self, mode="indeterminate", maximum=60, )
         self.progress.grid(row=2, column=1, padx=5, pady=(0,10), columnspan=4, sticky="ew")
