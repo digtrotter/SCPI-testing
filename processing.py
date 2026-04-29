@@ -1,5 +1,5 @@
 import numpy
-from scipy.signal import find_peaks, detrend
+from scipy.signal import find_peaks, detrend, correlate
 from scipy.interpolate import CubicSpline
 
 def process(channel):
@@ -77,3 +77,13 @@ def process_space(channel, sweep_freq, n_g=1.468):
     reflectivity_db = 10 * numpy.log10(magnitudes_normal + 1e-12)
     
     channel.eixos = (distances_meters, reflectivity_db)
+
+def calculate_cross_correlation(ref_channel, mes_channel):
+    measured_spectrum = mes_channel.eixos[1][5:]
+    reference_spectrum = ref_channel.eixos[1][5:]
+    correlation = [None, None]
+
+    correlation[1] = numpy.array(correlate(measured_spectrum, reference_spectrum, mode='full'))
+    correlation[0] = numpy.arange(len(correlation[1])) - (int(len(correlation[1]) / 2))
+    return numpy.array(correlation)
+
