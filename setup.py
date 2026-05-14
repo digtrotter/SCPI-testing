@@ -39,19 +39,20 @@ class Dados:
 
     def saveFile(self, path):
         with h5py.File(path, 'w') as file:
-            file.create_dataset("valores", data=self.valores)
-            file.create_dataset("numPts", data=self.numPts)
-            file.create_dataset("zero", data=self.zero)
-            file.create_dataset("ymult", data=self.ymult)
-            file.create_dataset("xincr", data=self.xincr)
+            dataset = file.create_dataset("valores", data=self.valores)
+            dataset.attrs["numPts"] = self.numPts
+            dataset.attrs["zero"] = self.zero
+            dataset.attrs["ymult"] = self.ymult
+            dataset.attrs["xincr"] = self.xincr
 
     def loadFile(self, path):
         with h5py.File(path, 'r') as file:
-            self.valores = file["valores"]
-            self.numPts = file["numPts"]
-            self.zero = file["zero"]
-            self.ymult = file["ymult"]
-            self.xincr = file["xincr"]
+            dataset = file["valores"]
+            self.valores = dataset[:]
+            self.numPts = dataset.attrs["numPts"]
+            self.zero = dataset.attrs["zero"]
+            self.ymult = dataset.attrs["ymult"]
+            self.xincr = dataset.attrs["xincr"]
 
 class MSO:
     def __init__(self, canal1="CH1", canal2="CH3", amostragem="1000000", tempo="8"):
