@@ -1,6 +1,7 @@
 import pyvisa
 import time
 import json
+import h5py
 
 rm = pyvisa.ResourceManager("@py")
 
@@ -36,20 +37,50 @@ class Dados:
     def updateEixos(self, eixos):
         self.eixos = eixos
 
+    def saveFile(self, path):
+        with h5py.File(path, 'w') as file:
+            file.create_dataset("valores", data=self.valores)
+            file.create_dataset("numPts", data=self.numPts)
+            file.create_dataset("zero", data=self.zero)
+            file.create_dataset("ymult", data=self.ymult)
+            file.create_dataset("xincr", data=self.xincr)
+
+    def loadFile(self, path):
+        with h5py.File(path, 'r') as file:
+            self.valores = file["valores"]
+            self.numPts = file["numPts"]
+            self.zero = file["zero"]
+            self.ymult = file["ymult"]
+            self.xincr = file["xincr"]
+
 class MSO:
-    def __init__(self, canal1: str, canal2: str, amostragem: str, tempo: str):
-        self.ip = '192.168.1.111'
-        self.resource = f'TCPIP0::{self.ip}::4000::SOCKET'
+    def __init__(self, canal1="CH1", canal2="CH3", amostragem="1000000", tempo="8"):
+        self.ip = None
+        self.port = None
+        self.resource = None
+        self.instance = None
+
         self.acquisition = Dados(canal1)
         self.kclock = Dados(canal2)
         self.amostragem = amostragem
         self.tempo = tempo
+
+    def connect(self, ip: str, port: int):
+        self.ip = ip
+        self.port = port
+        self.resource = f'TCPIP0::{self.ip}::{self.port}::SOCKET'
+
         try:
             self.instance = rm.open_resource(self.resource, open_timeout=700)
             self.instance.read_termination = '\n'
             self.instance.write_termination = '\n'
-        except Exception:
-            print("incapaz de conectar ao osciloscopio")
+            print(f"Connected to MSO at {self.resource}")
+            return True
+        except Exception as e:
+            print(f"Error connecting to MSO at {self.resource}: {e}")
+            self.instance = None
+            return False
+
     def update(self, canal1, canal2, amostragem, tempo):
         '''
         atualiza as variáveis vindas da GUI
@@ -92,19 +123,28 @@ class MSO:
 
 class TSL:
     def __init__(self):
-        self.ip = '192.168.1.100'
-        self.resource = f'TCPIP0::{self.ip}::5000::SOCKET'
+        self.ip = None
+        self.port = None
+        self.resource = None
         
         self.velocidade = None
         self.comprimento_inicial = None
         self.comprimento_final = None
+        self.instance = None
 
+    def connect(self, ip: str, port: int):
+        self.ip = ip
+        self.port = port
+        self.resource = f'TCPIP0::{self.ip}::{self.port}::SOCKET'
         try:
             self.instance = rm.open_resource(self.resource, open_timeout=700) # works for pyvisa-py, "open_timeout" is confusing on documentation
             self.instance.read_termination = '\r'
             self.instance.write_termination = '\r'
-        except Exception:
-            print("incapaz de conectar ao TSL")
+            print(f"Connected to TSL at {self.resource}")
+            return True
+        except Exception as e:
+            print(f"Error connecting to TSL at {self.resource}: {e}")
+            return False
 
     def query(self, command):
         try:
