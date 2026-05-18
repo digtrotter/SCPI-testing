@@ -1,6 +1,4 @@
-import tkinter as tk
-from tkinter import ttk
-
+import customtkinter as ctk
 import matplotlib.figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
@@ -8,9 +6,12 @@ import setup
 import processing
 import mock
 
-# tk interface
+# Set up CustomTkinter appearance
+ctk.set_appearance_mode("Light")  # Modes: "System" (standard), "Dark", "Light"
+ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
 
-class App(tk.Tk):
+# tk interface
+class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.tsl = None
@@ -27,17 +28,17 @@ class App(tk.Tk):
         self.grid_rowconfigure(1, weight=1) # Row 0 for navigation bar, Row 1 for content frames
 
         # Navigation bar
-        self.navigation_bar = ttk.Frame(self)
+        self.navigation_bar = ctk.CTkFrame(self)
         self.navigation_bar.grid(row=0, column=0, sticky="ew")
 
-        self.nav_button_connect = ttk.Button(self.navigation_bar, text="Connection", command=lambda: self.show_frame("FrameConnect"))
+        self.nav_button_connect = ctk.CTkButton(self.navigation_bar, text="Connection", command=lambda: self.show_frame("FrameConnect"))
         self.nav_button_connect.pack(side="left", padx=5, pady=5)
 
-        self.nav_button_data = ttk.Button(self.navigation_bar, text="Data View", command=lambda: self.show_frame("DataScreen"))
+        self.nav_button_data = ctk.CTkButton(self.navigation_bar, text="Data View", command=lambda: self.show_frame("DataScreen"))
         self.nav_button_data.pack(side="left", padx=5, pady=5)
 
         # Container for all frames
-        self.container = ttk.Frame(self)
+        self.container = ctk.CTkFrame(self)
         self.container.grid(row=1, column=0, sticky="nsew")
         self.container.grid_rowconfigure(0, weight=1)
         self.container.grid_columnconfigure(0, weight=1)
@@ -100,11 +101,11 @@ class App(tk.Tk):
         try:
             self.mso.write('DATA:SOURCE CH1')
             self.mso.getWFMO(self.mso.acquisition)
-            self.mso.acquisition.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+            self.mso.acquisition.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) 
 
             self.mso.write('DATA:SOURCE CH3')
             self.mso.getWFMO(self.mso.kclock)
-            self.mso.kclock.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) # unsigned int, least sig. bit first
+            self.mso.kclock.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) 
 
             self.after(0, self.process_data)
 
@@ -115,18 +116,16 @@ class App(tk.Tk):
     
     def process_data(self):
         self.acquiring = True
-        processing.process(self.mso.acquisition)# process ch1
-        processing.process(self.mso.kclock)# process ch3
+        processing.process(self.mso.acquisition)
+        processing.process(self.mso.kclock)
 
-        peaks = processing.interpolPeaks(self.mso.kclock) # interpolate ch3 to get peaks
-        processing.interpolData(self.mso.acquisition, peaks)# interpolate ch1 and convert to k-domain
+        peaks = processing.interpolPeaks(self.mso.kclock) 
+        processing.interpolData(self.mso.acquisition, peaks)
 
-        # The sweep frequency needs to be properly passed from the GUI settings
-        # For now, we use the mock function as a placeholder
         sweep_freq = mock.mock_speed_hz()
 
-        processing.process_fft(self.mso.acquisition) # convert to time
-        processing.process_space(self.mso.acquisition, sweep_freq) # convert to space
+        processing.process_fft(self.mso.acquisition) 
+        processing.process_space(self.mso.acquisition, sweep_freq) 
 
         self.plot_all(self.mso.acquisition)
 
@@ -138,61 +137,65 @@ class App(tk.Tk):
         self.frames['DataScreen'].graph_frame.plot_graph(channel.eixos)
         self.frames['FrameConnect'].bottom_right_frame.plot_graph(channel.eixos)
 
-class DataScreen(ttk.Frame):
+
+class DataScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.graph_frame = FrameData(self, controller)
-        self.graph_frame.config(text="Gráfico")
+        self.graph_frame = FrameDataLarge(self, controller)
+        self.graph_frame.set_title("Gráfico")
         self.graph_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
-class FrameConnect(ttk.Frame):
-    def __init__(self, parent, controller): # Added controller argument
+
+class FrameConnect(ctk.CTkFrame):
+    def __init__(self, parent, controller): 
         super().__init__(parent)
         self.grid_columnconfigure((0,1), weight=1)
         self.controller = controller
 
         self.left_frame = FrameDAQ(self, controller)
-        self.left_frame.config(text="Config MSO24")
+        self.left_frame.set_title("Config MSO24")
         self.left_frame.grid(row=0, column=0, padx=5, pady=5, sticky="news")
 
         self.right_frame = FrameTSL(self, controller)
-        self.right_frame.config(text="Config TSL-570")
+        self.right_frame.set_title("Config TSL-570")
         self.right_frame.grid(row=0, column=1, padx=5, pady=5, sticky="news")
 
         self.bottom_left_frame = FrameSave(self, controller)
-        self.bottom_left_frame.config(text="Arquivos")
+        self.bottom_left_frame.set_title("Arquivos")
         self.bottom_left_frame.grid(row=2, column=0, padx=5, pady=5, sticky="news")
 
         self.bottom_right_frame = FrameData(self, controller)
-        self.bottom_right_frame.config(text="Varredura")
+        self.bottom_right_frame.set_title("Varredura")
         self.bottom_right_frame.grid(row=2, column=1, padx=5, pady=5, sticky="news")
 
-class FrameDAQ(ttk.Labelframe):
-    def __init__(self, parent, controller): # Added controller argument
+
+class FrameDAQ(ctk.CTkFrame):
+    def __init__(self, parent, controller): 
         super().__init__(parent)
         self.grid_columnconfigure((0,1), weight=1)
         self.controller = controller
+        self.title_label = None
         
         # Connection widgets
-        self.ip_label = ttk.Label(self, text="IP Address:")
-        self.ip_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.ip_label = ctk.CTkLabel(self, text="IP Address:")
+        self.ip_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
 
-        self.ip_entry = ttk.Entry(self)
+        self.ip_entry = ctk.CTkEntry(self)
         self.ip_entry.insert(0, "192.168.1.111")
-        self.ip_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        self.ip_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        self.port_label = ttk.Label(self, text="Port:")
-        self.port_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.port_label = ctk.CTkLabel(self, text="Port:")
+        self.port_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
 
-        self.port_entry = ttk.Entry(self)
+        self.port_entry = ctk.CTkEntry(self)
         self.port_entry.insert(0, "4000")
-        self.port_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.port_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
-        self.connect_button = ttk.Button(self, text="Connect MSO", command=self.connectMSO)
-        self.connect_button.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+        self.connect_button = ctk.CTkButton(self, text="Connect MSO", command=self.connectMSO)
+        self.connect_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
 
         # Configuration widgets
         self.buttonText = "Enviar Instrução"
@@ -208,24 +211,32 @@ class FrameDAQ(ttk.Labelframe):
                                 ["10000", "100000", "1000000"],
                                 ["1", "2", "4", "6", "8"]]
         
-        self.labels = [ttk.Label(self, text=x) for x in self.labelOptions]
-        self.comboboxes = [ttk.Combobox(self, values=x) for x in self.comboboxOptions]
-        self.entry = ttk.Entry(self)
-        self.button = ttk.Button(self, text=self.buttonText, command=lambda:controller.mso.query(self.entry.get()))
+        self.labels = [ctk.CTkLabel(self, text=x) for x in self.labelOptions]
+        self.comboboxes = [ctk.CTkComboBox(self, values=x) for x in self.comboboxOptions]
+        self.entry = ctk.CTkEntry(self)
+        self.button = ctk.CTkButton(self, text=self.buttonText, command=lambda:controller.mso.query(self.entry.get()))
 
-        self.comboboxes[0].set(self.comboboxes[0]['values'][0])
-        self.comboboxes[1].set(self.comboboxes[1]['values'][2])
-        self.comboboxes[2].set(self.comboboxes[2]['values'][-1])
-        self.comboboxes[3].set(self.comboboxes[3]['values'][-1])
+        # Set default values
+        self.comboboxes[0].set(self.comboboxOptions[0][0])
+        self.comboboxes[1].set(self.comboboxOptions[1][2])
+        self.comboboxes[2].set(self.comboboxOptions[2][-1])
+        self.comboboxes[3].set(self.comboboxOptions[3][-1])
 
         for x in range(len(self.labels)):
-            self.labels[x].grid(row=x+3, column=0, pady=(5,0), sticky="ew")
+            self.labels[x].grid(row=x+4, column=0, pady=(5,0), sticky="ew")
         
         for x in range(len(self.comboboxOptions)):
-            self.comboboxes[x].grid(row=x+3, column=1, pady=(0,10), sticky="ew")
+            self.comboboxes[x].grid(row=x+4, column=1, pady=(0,10), sticky="ew")
 
-        self.entry.grid(row=len(self.labels)+2, column=1, sticky="ew", pady=(0,10))
-        self.button.grid(row=len(self.labels)+3, column=0, columnspan=2, padx=5, pady=(0,10), sticky="ew")
+        self.entry.grid(row=len(self.labels)+3, column=1, sticky="ew", pady=(0,10))
+        self.button.grid(row=len(self.labels)+4, column=0, columnspan=2, padx=5, pady=(0,10), sticky="ew")
+
+    def set_title(self, text):
+        if not self.title_label:
+            self.title_label = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(weight="bold"))
+            self.title_label.grid(row=0, column=0, columnspan=2, pady=(5, 10), sticky="w", padx=5)
+        else:
+            self.title_label.configure(text=text)
 
     def connectMSO(self):
         mso = setup.MSO(self.comboboxes[0], self.comboboxes[1], self.comboboxes[2], self.comboboxes[3])
@@ -234,62 +245,71 @@ class FrameDAQ(ttk.Labelframe):
         else:
             print("Erro ao conectar ao MSO")
 
-class FrameTSL(ttk.Labelframe):
-    def __init__(self, parent, controller): # Added controller argument
+
+class FrameTSL(ctk.CTkFrame):
+    def __init__(self, parent, controller): 
         super().__init__(parent)
         self.grid_columnconfigure((0,1), weight=1)
         self.controller = controller
+        self.title_label = None
 
         # Connection widgets
-        self.ip_label = ttk.Label(self, text="IP Address:")
-        self.ip_label.grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        self.ip_label = ctk.CTkLabel(self, text="IP Address:")
+        self.ip_label.grid(row=1, column=0, sticky="w", padx=5, pady=5)
 
-        self.ip_entry = ttk.Entry(self)
+        self.ip_entry = ctk.CTkEntry(self)
         self.ip_entry.insert(0, "192.168.1.100")
-        self.ip_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        self.ip_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        self.port_label = ttk.Label(self, text="Port:")
-        self.port_label.grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        self.port_label = ctk.CTkLabel(self, text="Port:")
+        self.port_label.grid(row=2, column=0, sticky="w", padx=5, pady=5)
 
-        self.port_entry = ttk.Entry(self)
+        self.port_entry = ctk.CTkEntry(self)
         self.port_entry.insert(0, "5000")
-        self.port_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.port_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
-        self.connect_button = ttk.Button(self, text="Connect TSL", command=self.connectTSL)
-        self.connect_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+        self.connect_button = ctk.CTkButton(self, text="Connect TSL", command=self.connectTSL)
+        self.connect_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
 
         # Configuration widgets
         self.comboboxOptions = [["1", "2", "5", "10", "20"]]
-        self.comboboxSelected = [tk.StringVar(value="2")]
+        self.comboboxSelected = ctk.StringVar(value="2")
 
-        self.label1 = ttk.Label(self, text="Velocidade de varredura")
-        self.label1.grid(row=3, column=0, sticky="w", pady=(5, 0))
+        self.label1 = ctk.CTkLabel(self, text="Velocidade de varredura")
+        self.label1.grid(row=4, column=0, sticky="w", pady=(5, 0))
 
-        self.combobox1 = ttk.Combobox(self, textvariable=self.comboboxSelected[0], values=self.comboboxOptions[0] )
-        self.combobox1.grid(row=3, column=1, columnspan=2, padx=5, pady=(0, 10), sticky="nsew")
+        self.combobox1 = ctk.CTkComboBox(self, variable=self.comboboxSelected, values=self.comboboxOptions[0])
+        self.combobox1.grid(row=4, column=1, columnspan=2, padx=5, pady=(0, 10), sticky="nsew")
 
-        self.label2 = ttk.Label(self, text="Comprimento de onda inicial")
-        self.label2.grid(row=4, column=0, sticky="w", pady=(5, 0))
+        self.label2 = ctk.CTkLabel(self, text="Comprimento de onda inicial")
+        self.label2.grid(row=5, column=0, sticky="w", pady=(5, 0))
 
-        self.entry2 = ttk.Entry(self)
+        self.entry2 = ctk.CTkEntry(self)
         self.entry2.insert(0, "1515")
-        self.entry2.grid(row=4, column=1, padx=5, pady=(0, 10), sticky="nsew")
+        self.entry2.grid(row=5, column=1, padx=5, pady=(0, 10), sticky="nsew")
 
-        self.label3 = ttk.Label(self, text="Comprimento de onda final")
-        self.label3.grid(row=5, column=0, sticky="w", pady=(5, 0))
+        self.label3 = ctk.CTkLabel(self, text="Comprimento de onda final")
+        self.label3.grid(row=6, column=0, sticky="w", pady=(5, 0))
 
-        self.entry3 = ttk.Entry(self)
+        self.entry3 = ctk.CTkEntry(self)
         self.entry3.insert(0, "1575")
-        self.entry3.grid(row=5, column=1, padx=5, pady=(0, 10), sticky="nsew")
+        self.entry3.grid(row=6, column=1, padx=5, pady=(0, 10), sticky="nsew")
 
-        self.label4 = ttk.Label(self, text="Instrução SCPI")
-        self.label4.grid(row=6, column=0, pady=(0, 10), sticky="w")
+        self.label4 = ctk.CTkLabel(self, text="Instrução SCPI")
+        self.label4.grid(row=7, column=0, pady=(0, 10), sticky="w", padx=5)
 
-        self.entry4 = ttk.Entry(self)
-        self.entry4.grid(row=6, column=1, padx=5, pady=(0, 10), sticky="nsew")
+        self.entry4 = ctk.CTkEntry(self)
+        self.entry4.grid(row=7, column=1, padx=5, pady=(0, 10), sticky="nsew")
         
-        self.button5 = ttk.Button(self, text="Enviar Instrução", command=lambda:controller.tsl.query(self.entry4.get())) # Changed root to controller.tsl
-        self.button5.grid(row=7, column=0, columnspan=2, padx=5, pady=(0, 10), sticky="nsew")
+        self.button5 = ctk.CTkButton(self, text="Enviar Instrução", command=lambda:controller.tsl.query(self.entry4.get())) 
+        self.button5.grid(row=8, column=0, columnspan=2, padx=5, pady=(0, 10), sticky="nsew")
+
+    def set_title(self, text):
+        if not self.title_label:
+            self.title_label = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(weight="bold"))
+            self.title_label.grid(row=0, column=0, columnspan=2, pady=(5, 10), sticky="w", padx=5)
+        else:
+            self.title_label.configure(text=text)
 
     def connectTSL(self):
         tsl = setup.TSL()
@@ -298,33 +318,43 @@ class FrameTSL(ttk.Labelframe):
         else:
             print("Erro ao connectar ao TSL")
 
-class FrameSave(ttk.Labelframe):
+
+class FrameSave(ctk.CTkFrame):
     def __init__(self, parent, controller): 
         super().__init__(parent)
         self.grid_columnconfigure((0,1), weight=1)
-        # self.grid_rowconfigure(0, weight=1)
         self.controller = controller
+        self.title_label = None
 
-        self.label1 = ttk.Label(self, text="Nome do arquivo", anchor="center")
-        self.label1.grid(row=0, column=0, padx=5, pady=(5,0), sticky="ew", columnspan=2)
+        self.label1 = ctk.CTkLabel(self, text="Nome do arquivo", anchor="center")
+        self.label1.grid(row=1, column=0, padx=5, pady=(5,0), sticky="ew", columnspan=2)
 
-        self.entry1 = ttk.Entry(self)
-        self.entry1.grid(row=1, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
+        self.entry1 = ctk.CTkEntry(self)
+        self.entry1.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
 
-        self.button1 = ttk.Button(self, text="Importar dados", command=lambda:self.load_file(self.entry1.get()))
-        self.button1.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
+        self.button1 = ctk.CTkButton(self, text="Importar dados", command=lambda:self.load_file(self.entry1.get()))
+        self.button1.grid(row=3, column=0, padx=5, pady=(0,10), sticky="ew")
 
-        self.button2 = ttk.Button(self, text="Salvar dados", command=lambda:self.save_file(self.entry1.get()))
-        self.button2.grid(row=2, column=1, padx=5, pady=(0,10), sticky="ew")
+        self.button2 = ctk.CTkButton(self, text="Salvar dados", command=lambda:self.save_file(self.entry1.get()))
+        self.button2.grid(row=3, column=1, padx=5, pady=(0,10), sticky="ew")
 
-        spacer3 = tk.Label(self, text="", height=2) # yes, regular tk. Not ttk
-        spacer3.grid(row=3, column=0)
+        spacer3 = ctk.CTkLabel(self, text="", height=20) 
+        spacer3.grid(row=4, column=0)
 
-        self.button4 = ttk.Button(self, text="Iniciar Varredura", command=controller.sweep_start)
-        self.button4.grid(row=4, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
-        self.progress = ttk.Progressbar(self, mode="indeterminate", maximum=60, )
-        self.progress.grid(row=5, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
+        self.button4 = ctk.CTkButton(self, text="Iniciar Varredura", command=controller.sweep_start)
+        self.button4.grid(row=5, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
+        
+        self.progress = ctk.CTkProgressBar(self, mode="indeterminate")
+        self.progress.grid(row=6, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
+        self.progress.set(0) # Initialize empty
     
+    def set_title(self, text):
+        if not self.title_label:
+            self.title_label = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(weight="bold"))
+            self.title_label.grid(row=0, column=0, columnspan=2, pady=(5, 10), sticky="w", padx=5)
+        else:
+            self.title_label.configure(text=text)
+
     def save_file(self, path):
         try:
             self.controller.mso.acquisition.saveFile(f"samples/aq-{path}.h5")
@@ -347,34 +377,49 @@ class FrameSave(ttk.Labelframe):
     def stop_task(self):
         self.progress.stop()
 
-class FrameData(ttk.Labelframe):
+
+class FrameData(ctk.CTkFrame):
     def __init__(self, parent, controller): 
         super().__init__(parent)
-
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        self.title_label = None
+
+        # Create a dedicated sub-frame for the plot to isolate the 'pack' layout
+        self.plot_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.plot_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
 
         self.fig = matplotlib.figure.Figure(figsize=(2, 2), dpi=100)
         self.ax = self.fig.add_subplot(111)
-
         self.ax.grid(True)
 
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self)
-
-        self.toolbar = NavigationToolbar2Tk(self.canvas, self)
-        self.toolbar.update()        
-
+        # Assign the canvas and toolbar to the isolated plot_frame
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(padx=10, pady=5, fill='both', expand=True)
+        self.canvas_widget.pack(fill='both', expand=True) # Use pack here to match the toolbar
+
+    def set_title(self, text):
+        if not self.title_label:
+            self.title_label = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(weight="bold"))
+            self.title_label.grid(row=0, column=0, pady=(5, 0), sticky="w", padx=10)
+        else:
+            self.title_label.configure(text=text)
 
     def plot_graph(self, data):
         self.ax.clear()
 
         if data:
             self.ax.plot(data[0], data[1])
-        self.ax.grid(True) # Re-enable grid if desired
+        self.ax.grid(True) 
 
         self.canvas.draw()
+
+class FrameDataLarge(FrameData):
+    def __init__(self, parent, controller):
+        super().__init__(parent, controller)
+       
+        self.toolbar = NavigationToolbar2Tk(self.canvas, self.plot_frame)
+        self.toolbar.update()        
 
 
 #####################################################
