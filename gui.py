@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import matplotlib.figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import sys
 
 import setup
 import processing
@@ -77,13 +78,16 @@ class App(ctk.CTk):
         comprimento_final = self.frames["FrameConnect"].right_frame.entry3.get()
 
         self.acquiring = True
-        self.frames["FrameConnect"].bottom_left_frame.start_task()
+        self.frames["FrameConnect"].bottom_right_frame.start_task()
         
-        setup.setup(self.mso, self.tsl, canal1, canal2, velocidade, comprimento_inicial, comprimento_final)
-        self.mso.write('ACQ:STATE RUN')
-        self.tsl.write('power:state 1')
-        self.tsl.write('wav:swe 1')
-        self.after(0, self.sweeping)
+        try:
+            setup.setup(self.mso, self.tsl, canal1, canal2, velocidade, comprimento_inicial, comprimento_final)
+            self.mso.write('ACQ:STATE RUN')
+            self.tsl.write('power:state 1')
+            self.tsl.write('wav:swe 1')
+            self.after(0, self.sweeping)
+        except Exception:
+            self.after(0, self.sweep_end)
 
     def sweeping(self):
         try:
@@ -96,8 +100,12 @@ class App(ctk.CTk):
             self.after(0, self.sweep_end)
 
     def sweep_end(self):
-        self.mso.write('ACQ:STATE STOP')
-        
+        try:
+            self.mso.write('ACQ:STATE STOP')
+            self.tsl.writei('wav:swe 0')
+        except Exception:
+            pass
+
         try:
             self.mso.write('DATA:SOURCE CH1')
             self.mso.getWFMO(self.mso.acquisition)
@@ -112,7 +120,7 @@ class App(ctk.CTk):
         except Exception:
             print("erro recebendo os dados")
             self.acquiring = False
-            self.frames["FrameConnect"].bottom_left_frame.stop_task()
+            self.frames["FrameConnect"].bottom_right_frame.stop_task()
     
     def process_data(self):
         self.acquiring = True
@@ -327,7 +335,7 @@ class FrameSave(ctk.CTkFrame):
         self.title_label = None
 
         self.label1 = ctk.CTkLabel(self, text="Nome do arquivo", anchor="center")
-        self.label1.grid(row=1, column=0, padx=5, pady=(5,0), sticky="ew", columnspan=2)
+        self.label1.grid(row=1, column=0, padx=5, sticky="ew", columnspan=2)
 
         self.entry1 = ctk.CTkEntry(self)
         self.entry1.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
@@ -337,16 +345,15 @@ class FrameSave(ctk.CTkFrame):
 
         self.button2 = ctk.CTkButton(self, text="Salvar dados", command=lambda:self.save_file(self.entry1.get()))
         self.button2.grid(row=3, column=1, padx=5, pady=(0,10), sticky="ew")
-
-        spacer3 = ctk.CTkLabel(self, text="", height=20) 
-        spacer3.grid(row=4, column=0)
-
-        self.button4 = ctk.CTkButton(self, text="Iniciar Varredura", command=controller.sweep_start)
-        self.button4.grid(row=5, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
         
-        self.progress = ctk.CTkProgressBar(self, mode="indeterminate")
-        self.progress.grid(row=6, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
-        self.progress.set(0) # Initialize empty
+        self.textbox = ctk.CTkTextbox(self, activate_scrollbars=True)
+        self.textbox.configure(state="disabled")
+
+        self.textbox.grid(row=4, column=0, columnspan=2, padx=5, sticky="new")
+
+        sys.stdout = Redirector(self.textbox, sys.__stdout__)
+        sys.stderr = Redirector(self.textbox, sys.__stderr__)
+
     
     def set_title(self, text):
         if not self.title_label:
@@ -371,12 +378,6 @@ class FrameSave(ctk.CTkFrame):
         except Exception:
             print("falha ao carregar os dados")
 
-    def start_task(self):
-        self.progress.start()  
-
-    def stop_task(self):
-        self.progress.stop()
-
 
 class FrameData(ctk.CTkFrame):
     def __init__(self, parent, controller): 
@@ -398,6 +399,19 @@ class FrameData(ctk.CTkFrame):
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(fill='both', expand=True) # Use pack here to match the toolbar
 
+        self.button = ctk.CTkButton(self, text="Iniciar Varredura", command=controller.sweep_start)
+        self.button.grid(row=5, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
+        
+        self.progress = ctk.CTkProgressBar(self, mode="indeterminate")
+        self.progress.grid(row=6, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
+        self.progress.set(0) # Initialize empty
+
+    def start_task(self):
+        self.progress.start()  
+
+    def stop_task(self):
+        self.progress.stop()
+
     def set_title(self, text):
         if not self.title_label:
             self.title_label = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(weight="bold"))
@@ -414,13 +428,63 @@ class FrameData(ctk.CTkFrame):
 
         self.canvas.draw()
 
-class FrameDataLarge(FrameData):
+
+class FrameDataLarge(ctk.CTkFrame):
     def __init__(self, parent, controller):
-        super().__init__(parent, controller)
-       
+        super().__init__(parent)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        self.title_label = None
+
+        # Create a dedicated sub-frame for the plot to isolate the 'pack' layout
+        self.plot_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.plot_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
+
+        self.fig = matplotlib.figure.Figure(figsize=(2, 2), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.ax.grid(True)
+
+        # Assign the canvas and toolbar to the isolated plot_frame
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+        self.canvas_widget = self.canvas.get_tk_widget()
+        self.canvas_widget.pack(fill='both', expand=True) # Use pack here to match the toolbar
+
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.plot_frame)
         self.toolbar.update()        
 
+    def set_title(self, text):
+        if not self.title_label:
+            self.title_label = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(weight="bold"))
+            self.title_label.grid(row=0, column=0, pady=(5, 0), sticky="w", padx=10)
+        else:
+            self.title_label.configure(text=text)
+
+    def plot_graph(self, data):
+        self.ax.clear()
+
+        if data:
+            self.ax.plot(data[0], data[1])
+        self.ax.grid(True) 
+
+        self.canvas.draw()
+
+
+class Redirector:
+    def __init__(self, textbox, stream):
+        self.textbox = textbox
+        self.stream = stream
+
+    def write(self, string):
+        self.stream.write(string)
+        
+        self.textbox.configure(state="normal")
+        self.textbox.insert("end", string)
+        self.textbox.see("end")
+        self.textbox.configure(state="disabled")
+
+    def flush(self):
+        # Ensure both streams flush properly
+        self.stream.flush()
 
 #####################################################
 
