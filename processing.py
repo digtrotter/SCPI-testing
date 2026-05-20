@@ -78,6 +78,20 @@ def process_space(channel, sweep_freq, n_g=1.468):
     
     channel.eixos = (distances_meters, reflectivity_db)
 
+def calculate_speed_hz(comprimento_inicial: str, comprimento_final: str, velocidade: str):
+    wav_start = float(comprimento_inicial)*1e-9
+    wav_end  = float(comprimento_final)*1e-9
+    wav_speed = float(velocidade)*1e-9
+    
+    c = 299792458.0
+    time = abs(wav_start - wav_end) / wav_speed
+
+    freq_start = c / wav_start
+    freq_end = c / wav_end
+    freq_speed = abs(freq_start - freq_end) / time
+
+    return freq_speed
+
 def calculate_cross_correlation(ref_channel, mes_channel):
     measured_spectrum = mes_channel.eixos[1][5:]
     reference_spectrum = ref_channel.eixos[1][5:]

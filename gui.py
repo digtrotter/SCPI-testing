@@ -69,8 +69,7 @@ class App(ctk.CTk):
         
         canal1 = self.frames["FrameConnect"].left_frame.comboboxes[0].get()
         canal2 = self.frames["FrameConnect"].left_frame.comboboxes[1].get()
-        amostragem = self.frames["FrameConnect"].left_frame.comboboxes[2].get()
-        tempo = self.frames["FrameConnect"].left_frame.comboboxes[3].get()
+        tamanho = self.frames["FrameConnect"].left_frame.comboboxes[2].get()
 
         velocidade = self.frames["FrameConnect"].right_frame.combobox1.get()
         comprimento_inicial = self.frames["FrameConnect"].right_frame.entry2.get()
@@ -79,10 +78,15 @@ class App(ctk.CTk):
         self.acquiring = True
         self.frames["FrameConnect"].bottom_right_frame.start_task()
         
+        setup.setup(self.mso, self.tsl, canal1, canal2, velocidade, comprimento_inicial, comprimento_final, tamanho)
         try:
-            setup.setup(self.mso, self.tsl, canal1, canal2, velocidade, comprimento_inicial, comprimento_final)
             self.mso.acquisition.speed = velocidade
             self.mso.kclock.speed = velocidade
+            self.mso.acquisition.initial_wavelen = comprimento_inicial
+            self.mso.kclock.initial_wavelen = comprimento_inicial
+            self.mso.acquisition.final_wavelen = comprimento_final
+            self.mso.kclock.final_wavelen = comprimento_final
+
             self.mso.write('ACQ:STATE RUN')
             self.tsl.write('power:state 1')
             self.tsl.write('wav:swe 1')
@@ -131,15 +135,19 @@ class App(ctk.CTk):
 
         peaks = processing.interpolPeaks(self.mso.kclock) 
         processing.interpolData(self.mso.acquisition, peaks)
+        
+        speed = self.mso.acquisition.speed
+        initial_wavelen = self.mso.acquisition.initial_wavelen
+        final_wavelen = self.mso.acquisition.final_wavelen
 
-        sweep_freq = self.frames["FrameConnect"].right_frame.combobox1.get()
+        speed_hz = processing.calculate_speed_hz(initial_wavelen, final_wavelen, speed)
 
         processing.process_fft(self.mso.acquisition) 
-        processing.process_space(self.mso.acquisition, sweep_freq) 
+        processing.process_space(self.mso.acquisition, speed_hz) 
 
         self.plot_all(self.mso.acquisition)
 
-        self.frames["FrameConnect"].bottom_left_frame.stop_task()
+        self.frames["FrameConnect"].bottom_right_frame.stop_task()
         self.acquiring = False
 
     def plot_all(self, channel):
@@ -190,21 +198,21 @@ class FrameDAQ(ctk.CTkFrame):
         self.title_label = None
         
         # Connection widgets
-        self.ip_label = ctk.CTkLabel(self, text="IP Address:")
+        self.ip_label = ctk.CTkLabel(self, text="Endereço IP:")
         self.ip_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
 
         self.ip_entry = ctk.CTkEntry(self)
         self.ip_entry.insert(0, "192.168.1.111")
         self.ip_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        self.port_label = ctk.CTkLabel(self, text="Port:")
+        self.port_label = ctk.CTkLabel(self, text="Porta:")
         self.port_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
 
         self.port_entry = ctk.CTkEntry(self)
         self.port_entry.insert(0, "4000")
         self.port_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
-        self.connect_button = ctk.CTkButton(self, text="Connect MSO", command=self.connectMSO)
+        self.connect_button = ctk.CTkButton(self, text="Conectar", command=self.connectMSO)
         self.connect_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
 
         # Configuration widgets
@@ -212,14 +220,12 @@ class FrameDAQ(ctk.CTkFrame):
 
         self.labelOptions = ["Canal Primário",
                              "Canal Secundário",
-                             "Taxa de Amostragem",
-                             "Taxa de Aquisição",
+                             "Tamanho da Aquisição",
                              "Instrução SCPI"]
 
         self.comboboxOptions = [["CH1", "CH2", "CH3", "CH4"],
                                 ["CH1", "CH2", "CH3", "CH4"],
-                                ["10000", "100000", "1000000"],
-                                ["1", "2", "4", "6", "8"]]
+                                ["100000", "1000000", "10000000"]]
         
         self.labels = [ctk.CTkLabel(self, text=x) for x in self.labelOptions]
         self.comboboxes = [ctk.CTkComboBox(self, values=x) for x in self.comboboxOptions]
@@ -230,10 +236,9 @@ class FrameDAQ(ctk.CTkFrame):
         self.comboboxes[0].set(self.comboboxOptions[0][0])
         self.comboboxes[1].set(self.comboboxOptions[1][2])
         self.comboboxes[2].set(self.comboboxOptions[2][-1])
-        self.comboboxes[3].set(self.comboboxOptions[3][-1])
 
         for x in range(len(self.labels)):
-            self.labels[x].grid(row=x+4, column=0, pady=(5,0), sticky="ew")
+            self.labels[x].grid(row=x+4, column=0, pady=(5,0), sticky="w")
         
         for x in range(len(self.comboboxOptions)):
             self.comboboxes[x].grid(row=x+4, column=1, pady=(0,10), sticky="ew")
@@ -249,7 +254,7 @@ class FrameDAQ(ctk.CTkFrame):
             self.title_label.configure(text=text)
 
     def connectMSO(self):
-        mso = setup.MSO(self.comboboxes[0], self.comboboxes[1], self.comboboxes[2], self.comboboxes[3])
+        mso = setup.MSO(self.comboboxes[0], self.comboboxes[1], self.comboboxes[2])
         if (mso.connect(self.ip_entry.get(), self.port_entry.get())):
             self.controller.bind_mso(mso)
         else:
@@ -264,21 +269,21 @@ class FrameTSL(ctk.CTkFrame):
         self.title_label = None
 
         # Connection widgets
-        self.ip_label = ctk.CTkLabel(self, text="IP Address:")
+        self.ip_label = ctk.CTkLabel(self, text="Endereço IP:")
         self.ip_label.grid(row=1, column=0, sticky="w", padx=5, pady=5)
 
         self.ip_entry = ctk.CTkEntry(self)
         self.ip_entry.insert(0, "192.168.1.100")
         self.ip_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        self.port_label = ctk.CTkLabel(self, text="Port:")
+        self.port_label = ctk.CTkLabel(self, text="Porta:")
         self.port_label.grid(row=2, column=0, sticky="w", padx=5, pady=5)
 
         self.port_entry = ctk.CTkEntry(self)
         self.port_entry.insert(0, "5000")
         self.port_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
-        self.connect_button = ctk.CTkButton(self, text="Connect TSL", command=self.connectTSL)
+        self.connect_button = ctk.CTkButton(self, text="Conectar", command=self.connectTSL)
         self.connect_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
 
         # Configuration widgets
@@ -306,7 +311,7 @@ class FrameTSL(ctk.CTkFrame):
         self.entry3.grid(row=6, column=1, padx=5, pady=(0, 10), sticky="nsew")
 
         self.label4 = ctk.CTkLabel(self, text="Instrução SCPI")
-        self.label4.grid(row=7, column=0, pady=(0, 10), sticky="w", padx=5)
+        self.label4.grid(row=7, column=0, pady=(0, 10), sticky="w")
 
         self.entry4 = ctk.CTkEntry(self)
         self.entry4.grid(row=7, column=1, padx=5, pady=(0, 10), sticky="nsew")

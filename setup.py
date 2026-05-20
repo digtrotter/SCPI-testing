@@ -21,10 +21,13 @@ class Dados:
         self.zero    = None
         self.ymult   = None
         self.xincr   = None
-        self.speed   = None
 
-        self.eixos_pre = None # Raw data before processing
-        self.eixos   = None # Processed data
+        self.speed           = None
+        self.initial_wavelen = None
+        self.final_wavelen   = None
+
+        self.eixos_pre  = None # Raw data before processing
+        self.eixos      = None # Processed data
     
     def updateValues(self, valores):
         self.valores = valores
@@ -45,7 +48,10 @@ class Dados:
             dataset.attrs["zero"] = self.zero
             dataset.attrs["ymult"] = self.ymult
             dataset.attrs["xincr"] = self.xincr
+
             dataset.attrs["speed"] = self.speed
+            dataset.attrs["initial_wavelen"] = self.initial_wavelen
+            dataset.attrs["final_wavelen"] = self.final_wavelen
 
     def loadFile(self, path):
         with h5py.File(path, 'r') as file:
@@ -55,10 +61,13 @@ class Dados:
             self.zero = dataset.attrs["zero"]
             self.ymult = dataset.attrs["ymult"]
             self.xincr = dataset.attrs["xincr"]
+
             self.speed = dataset.attrs["speed"]
+            self.initial_wavelen = dataset.attrs["initial_wavelen"]
+            self.final_wavelen = dataset.attrs["final_wavelen"]
 
 class MSO:
-    def __init__(self, canal1="CH1", canal2="CH3", amostragem="1000000", tempo="8"):
+    def __init__(self, canal1="CH1", canal2="CH3", tamanho="10000000"):
         self.ip = None
         self.port = None
         self.resource = None
@@ -66,8 +75,7 @@ class MSO:
 
         self.acquisition = Dados(canal1)
         self.kclock = Dados(canal2)
-        self.amostragem = amostragem
-        self.tempo = tempo
+        self.tamanho = tamanho
 
     def connect(self, ip: str, port: int):
         self.ip = ip
@@ -85,14 +93,10 @@ class MSO:
             self.instance = None
             return False
 
-    def update(self, canal1, canal2, amostragem, tempo):
-        '''
-        atualiza as variáveis vindas da GUI
-        '''
+    def update(self, canal1, canal2, tamanho):
         self.acquisition = Dados(canal1)
         self.kclock = Dados(canal2)
-        self.amostragem = amostragem
-        self.tempo = tempo
+        self.tamanho = tamanho
     
     def setupWFMO(self, channel_name: str):
         self.write(f'DATA:SOURCE {channel_name}')
@@ -171,7 +175,10 @@ class TSL:
 
 ############################################################
 
-def setup(osc, laser, canal1: str, canal2: str, velocidade: str, comprimento_inicial: str, comprimento_final: str):
+def setup(osc, laser, canal1: str, canal2: str, velocidade: str, comprimento_inicial: str, comprimento_final: str, tamanho_aquisicao: str):
+    tempo_aquisicao = abs((float(comprimento_final) - float(comprimento_inicial)) / float(velocidade))
+    taxa_aquisicao = float(float(tamanho_aquisicao) / tempo_aquisicao)
+
     laser.write('power:state 1')
     laser.write(f'wav:sweep:start {comprimento_inicial}e-9')
     laser.write(f'wav:sweep:stop {comprimento_final}e-9')
@@ -203,11 +210,21 @@ def setup(osc, laser, canal1: str, canal2: str, velocidade: str, comprimento_ini
 
     osc.write('hor:mode man')
     osc.write("hor:mode:man:configure horizontalscale")
-    osc.write('hor:recordlength 10000000')
-    osc.write("hor:samplerate 250000")
+    osc.write(f'hor:recordlength {tamanho_aquisicao}')
+    osc.write(f"hor:samplerate {taxa_aquisicao}")
+
+    time.sleep(1) # delay necessário para evitar timeout no próximo query
+
+    # O mso arredonda a taxa para o valor predeterminado mais próximo. Se arredondar para cima, a aquisição durará menos e parte do sinal será perdido
+    taxa_arredondada = float(osc.instance.query("hor:samplerate?"))
+    print(taxa_arredondada)
+    print(taxa_aquisicao)
+    if(taxa_arredondada > taxa_aquisicao):
+        taxa_arredondada = taxa_arredondada * 0.49  # os intervalos geralmente são: 1, 2.5, 5, 10
+        osc.write(f"hor:samplerate {taxa_arredondada}")
 
     osc.write('data:start 1')
-    osc.write('data:stop 10000000')
+    osc.write(f'data:stop {tamanho_aquisicao}')
     osc.write('header off')
     osc.write('*CLS')
     time.sleep(1)
