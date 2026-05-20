@@ -5,7 +5,6 @@ import sys
 
 import setup
 import processing
-import mock
 
 # Set up CustomTkinter appearance
 ctk.set_appearance_mode("Light")  # Modes: "System" (standard), "Dark", "Light"
@@ -82,6 +81,8 @@ class App(ctk.CTk):
         
         try:
             setup.setup(self.mso, self.tsl, canal1, canal2, velocidade, comprimento_inicial, comprimento_final)
+            self.mso.acquisition.speed = velocidade
+            self.mso.kclock.speed = velocidade
             self.mso.write('ACQ:STATE RUN')
             self.tsl.write('power:state 1')
             self.tsl.write('wav:swe 1')
@@ -102,7 +103,7 @@ class App(ctk.CTk):
     def sweep_end(self):
         try:
             self.mso.write('ACQ:STATE STOP')
-            self.tsl.writei('wav:swe 0')
+            self.tsl.write('wav:swe 0')
         except Exception:
             pass
 
@@ -110,6 +111,7 @@ class App(ctk.CTk):
             self.mso.write('DATA:SOURCE CH1')
             self.mso.getWFMO(self.mso.acquisition)
             self.mso.acquisition.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) 
+
 
             self.mso.write('DATA:SOURCE CH3')
             self.mso.getWFMO(self.mso.kclock)
@@ -130,7 +132,7 @@ class App(ctk.CTk):
         peaks = processing.interpolPeaks(self.mso.kclock) 
         processing.interpolData(self.mso.acquisition, peaks)
 
-        sweep_freq = mock.mock_speed_hz()
+        sweep_freq = self.frames["FrameConnect"].right_frame.combobox1.get()
 
         processing.process_fft(self.mso.acquisition) 
         processing.process_space(self.mso.acquisition, sweep_freq) 

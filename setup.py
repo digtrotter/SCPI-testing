@@ -21,6 +21,7 @@ class Dados:
         self.zero    = None
         self.ymult   = None
         self.xincr   = None
+        self.speed   = None
 
         self.eixos_pre = None # Raw data before processing
         self.eixos   = None # Processed data
@@ -44,6 +45,7 @@ class Dados:
             dataset.attrs["zero"] = self.zero
             dataset.attrs["ymult"] = self.ymult
             dataset.attrs["xincr"] = self.xincr
+            dataset.attrs["speed"] = self.speed
 
     def loadFile(self, path):
         with h5py.File(path, 'r') as file:
@@ -53,6 +55,7 @@ class Dados:
             self.zero = dataset.attrs["zero"]
             self.ymult = dataset.attrs["ymult"]
             self.xincr = dataset.attrs["xincr"]
+            self.speed = dataset.attrs["speed"]
 
 class MSO:
     def __init__(self, canal1="CH1", canal2="CH3", amostragem="1000000", tempo="8"):
