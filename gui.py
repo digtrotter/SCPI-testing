@@ -21,7 +21,7 @@ class App(ctk.CTk):
         self.tsl_connected = False
 
         self.title("OFDR")
-        self.geometry("1000x800")
+        self.geometry("700x450")
         self.resizable(True, True)
 
         self.grid_columnconfigure(0, weight=1)
@@ -33,6 +33,10 @@ class App(ctk.CTk):
 
         self.nav_button_connect = ctk.CTkButton(self.navigation_bar, text="Connection", command=lambda: self.show_frame("FrameConnect"))
         self.nav_button_connect.pack(side="left", padx=5, pady=5)
+        
+        # NEW: Sweep navigation button
+        self.nav_button_sweep = ctk.CTkButton(self.navigation_bar, text="Sweep", command=lambda: self.show_frame("SweepScreen"))
+        self.nav_button_sweep.pack(side="left", padx=5, pady=5)
 
         self.nav_button_data = ctk.CTkButton(self.navigation_bar, text="Data View", command=lambda: self.show_frame("DataScreen"))
         self.nav_button_data.pack(side="left", padx=5, pady=5)
@@ -44,7 +48,8 @@ class App(ctk.CTk):
         self.container.grid_columnconfigure(0, weight=1)
 
         self.frames = {}
-        for F in (FrameConnect, DataScreen):
+        # ADDED: SweepScreen to the tuple
+        for F in (FrameConnect, SweepScreen, DataScreen):
             page_name = F.__name__
             frame = F(self.container, self) # Pass self (App instance) as controller
             self.frames[page_name] = frame
@@ -76,10 +81,11 @@ class App(ctk.CTk):
         comprimento_final = self.frames["FrameConnect"].right_frame.entry3.get()
 
         self.acquiring = True
-        self.frames["FrameConnect"].bottom_right_frame.start_task()
         
-        setup.setup(self.mso, self.tsl, canal1, canal2, velocidade, comprimento_inicial, comprimento_final, tamanho)
+        self.frames["SweepScreen"].right_frame.start_task()
+        
         try:
+            setup.setup(self.mso, self.tsl, canal1, canal2, velocidade, comprimento_inicial, comprimento_final, tamanho)
             self.mso.acquisition.speed = velocidade
             self.mso.kclock.speed = velocidade
             self.mso.acquisition.initial_wavelen = comprimento_inicial
@@ -116,7 +122,6 @@ class App(ctk.CTk):
             self.mso.getWFMO(self.mso.acquisition)
             self.mso.acquisition.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) 
 
-
             self.mso.write('DATA:SOURCE CH3')
             self.mso.getWFMO(self.mso.kclock)
             self.mso.kclock.valores = self.mso.instance.query_binary_values('CURVE?', datatype='H', is_big_endian=False) 
@@ -126,7 +131,7 @@ class App(ctk.CTk):
         except Exception:
             print("erro recebendo os dados")
             self.acquiring = False
-            self.frames["FrameConnect"].bottom_right_frame.stop_task()
+            self.frames["SweepScreen"].right_frame.stop_task()
     
     def process_data(self):
         self.acquiring = True
@@ -147,13 +152,13 @@ class App(ctk.CTk):
 
         self.plot_all(self.mso.acquisition)
 
-        self.frames["FrameConnect"].bottom_right_frame.stop_task()
+        self.frames["SweepScreen"].right_frame.stop_task()
         self.acquiring = False
 
     def plot_all(self, channel):
         print('plottando dados')
         self.frames['DataScreen'].graph_frame.plot_graph(channel.eixos)
-        self.frames['FrameConnect'].bottom_right_frame.plot_graph(channel.eixos)
+        self.frames['SweepScreen'].right_frame.plot_graph(channel.eixos)
 
 
 class DataScreen(ctk.CTkFrame):
@@ -167,10 +172,25 @@ class DataScreen(ctk.CTkFrame):
         self.graph_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
 
+class SweepScreen(ctk.CTkFrame):
+    def __init__(self, parent, controller): 
+        super().__init__(parent)
+        self.grid_columnconfigure((0,1), weight=1, uniform="grupo1")
+        self.controller = controller
+
+        self.left_frame = FrameSave(self, controller)
+        self.left_frame.set_title("Arquivos")
+        self.left_frame.grid(row=0, column=0, padx=(5,5), pady=5, sticky="news")
+
+        self.right_frame = FrameData(self, controller)
+        self.right_frame.set_title("Varredura")
+        self.right_frame.grid(row=0, column=1, padx=(5,5), pady=5, sticky="news")
+
+
 class FrameConnect(ctk.CTkFrame):
     def __init__(self, parent, controller): 
         super().__init__(parent)
-        self.grid_columnconfigure((0,1), weight=1)
+        self.grid_columnconfigure((0,1), weight=1, uniform="grupo1")
         self.controller = controller
 
         self.left_frame = FrameDAQ(self, controller)
@@ -180,15 +200,7 @@ class FrameConnect(ctk.CTkFrame):
         self.right_frame = FrameTSL(self, controller)
         self.right_frame.set_title("Config TSL-570")
         self.right_frame.grid(row=0, column=1, padx=5, pady=5, sticky="news")
-
-        self.bottom_left_frame = FrameSave(self, controller)
-        self.bottom_left_frame.set_title("Arquivos")
-        self.bottom_left_frame.grid(row=2, column=0, padx=5, pady=5, sticky="news")
-
-        self.bottom_right_frame = FrameData(self, controller)
-        self.bottom_right_frame.set_title("Varredura")
-        self.bottom_right_frame.grid(row=2, column=1, padx=5, pady=5, sticky="news")
-
+        
 
 class FrameDAQ(ctk.CTkFrame):
     def __init__(self, parent, controller): 
@@ -338,6 +350,8 @@ class FrameSave(ctk.CTkFrame):
     def __init__(self, parent, controller): 
         super().__init__(parent)
         self.grid_columnconfigure((0,1), weight=1)
+        self.grid_rowconfigure(4, weight=1)
+
         self.controller = controller
         self.title_label = None
 
@@ -356,7 +370,7 @@ class FrameSave(ctk.CTkFrame):
         self.textbox = ctk.CTkTextbox(self, activate_scrollbars=True)
         self.textbox.configure(state="disabled")
 
-        self.textbox.grid(row=4, column=0, columnspan=2, padx=5, sticky="new")
+        self.textbox.grid(row=4, column=0, columnspan=2, padx=5, sticky="news")
 
         sys.stdout = Redirector(self.textbox, sys.__stdout__)
         sys.stderr = Redirector(self.textbox, sys.__stderr__)
@@ -393,25 +407,23 @@ class FrameData(ctk.CTkFrame):
         self.grid_rowconfigure(1, weight=1)
         self.title_label = None
 
-        # Create a dedicated sub-frame for the plot to isolate the 'pack' layout
         self.plot_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.plot_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
+        self.plot_frame.grid(row=1, column=0, padx=(5,5), pady=5, sticky="nsew")
 
         self.fig = matplotlib.figure.Figure(figsize=(2, 2), dpi=100)
         self.ax = self.fig.add_subplot(111)
         self.ax.grid(True)
 
-        # Assign the canvas and toolbar to the isolated plot_frame
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(fill='both', expand=True) # Use pack here to match the toolbar
+        self.canvas_widget.pack(fill='both', expand=True) 
 
         self.button = ctk.CTkButton(self, text="Iniciar Varredura", command=controller.sweep_start)
-        self.button.grid(row=5, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
+        self.button.grid(row=2, column=0, padx=5, pady=(0,10), sticky="ew")
         
         self.progress = ctk.CTkProgressBar(self, mode="indeterminate")
-        self.progress.grid(row=6, column=0, padx=5, pady=(0,10), sticky="ew", columnspan=2)
-        self.progress.set(0) # Initialize empty
+        self.progress.grid(row=3, column=0, padx=5, pady=(0,10), sticky="ew")
+        self.progress.set(0) 
 
     def start_task(self):
         self.progress.start()  
