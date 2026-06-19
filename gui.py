@@ -98,9 +98,11 @@ class App(ctk.CTk):
             self.tsl.write('wav:swe 1')
             self.after(0, self.sweeping)
         except Exception:
+            print("erro ao iniciar varredura")
             self.after(0, self.sweep_end)
 
     def sweeping(self):
+        print("varredura em progresso")
         try:
             if (self.tsl.instance.query('wav:swe?') == '+0'):
                 self.after(0, self.sweep_end)
@@ -115,7 +117,7 @@ class App(ctk.CTk):
             self.mso.write('ACQ:STATE STOP')
             self.tsl.write('wav:swe 0')
         except Exception:
-            pass
+            print("erro ao parar varredura")
 
         try:
             self.mso.write('DATA:SOURCE CH1')
@@ -135,22 +137,26 @@ class App(ctk.CTk):
     
     def process_data(self):
         self.acquiring = True
-        processing.process(self.mso.acquisition)
-        processing.process(self.mso.kclock)
 
-        peaks = processing.interpolPeaks(self.mso.kclock) 
-        processing.interpolData(self.mso.acquisition, peaks)
-        
-        speed = self.mso.acquisition.speed
-        initial_wavelen = self.mso.acquisition.initial_wavelen
-        final_wavelen = self.mso.acquisition.final_wavelen
+        try:
+            processing.process(self.mso.acquisition)
+            processing.process(self.mso.kclock)
 
-        speed_hz = processing.calculate_speed_hz(initial_wavelen, final_wavelen, speed)
+            peaks = processing.interpolPeaks(self.mso.kclock) 
+            processing.interpolData(self.mso.acquisition, peaks)
+            
+            speed = self.mso.acquisition.speed
+            initial_wavelen = self.mso.acquisition.initial_wavelen
+            final_wavelen = self.mso.acquisition.final_wavelen
 
-        processing.process_fft(self.mso.acquisition) 
-        processing.process_space(self.mso.acquisition, speed_hz) 
+            speed_hz = processing.calculate_speed_hz(initial_wavelen, final_wavelen, speed)
 
-        self.plot_all(self.mso.acquisition)
+            processing.process_fft(self.mso.acquisition) 
+            processing.process_space(self.mso.acquisition, speed_hz) 
+
+            self.plot_all(self.mso.acquisition)
+        except Exception:
+            print("erro ao processar dados")
 
         self.frames["SweepScreen"].right_frame.stop_task()
         self.acquiring = False
